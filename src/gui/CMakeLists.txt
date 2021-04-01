@@ -35,6 +35,9 @@ if (Qt5_FOUND AND BUILD_GUI)
     src/congestionSetupDialog.cpp
     src/highlightGroupDialog.cpp
     src/selectHighlightWindow.cpp
+    src/staGui.cpp
+    src/timingDebugDialog.cpp
+    src/timingReportDialog.cpp
   )
 
   target_link_libraries(gui
@@ -43,7 +46,7 @@ if (Qt5_FOUND AND BUILD_GUI)
     PRIVATE
       Qt5::Core
       Qt5::Widgets
-      utility
+      utl
       Boost::boost
   )
 else()
@@ -60,4 +63,5 @@ target_include_directories(gui
     include
   PRIVATE
     ${OPENSTA_HOME}/include
+    ${DBSTA_HOME}/include
 )
