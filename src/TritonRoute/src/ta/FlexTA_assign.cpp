@@ -1149,7 +1149,6 @@ void FlexTAWorker::assignIroute_updateOthers(
 
 void FlexTAWorker::assignIroute(taPin* iroute)
 {
-
   set<taPin*, frBlockObjectComp> pinS;
   assignIroute_init(iroute, &pinS);
   frLayerNum lNum;

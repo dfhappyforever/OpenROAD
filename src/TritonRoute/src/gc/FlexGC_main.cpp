@@ -498,9 +498,7 @@ void FlexGCWorker::Impl::checkMetalSpacing_prl(
                                         gtl::xh(*rect2),
                                         gtl::yh(*rect2)),
                                   rect2->isFixed()));
-  if (addMarker(std::move(marker))) {
-    // true marker
-  }
+  addMarker(std::move(marker));
 }
 
 bool FlexGCWorker::Impl::checkMetalSpacing_short_skipOBSPin(
@@ -551,7 +549,6 @@ void FlexGCWorker::Impl::checkMetalSpacing_short(
     gcRect* rect2,
     const gtl::rectangle_data<frCoord>& markerRect)
 {
-
   auto layerNum = rect1->getLayerNum();
   auto net1 = rect1->getNet();
   auto net2 = rect2->getNet();
@@ -673,16 +670,13 @@ void FlexGCWorker::Impl::checkMetalSpacing_short(
                                         gtl::xh(*rect2),
                                         gtl::yh(*rect2)),
                                   rect2->isFixed()));
-  if (addMarker(std::move(marker))) {
-    // true marker
-  }
+  addMarker(std::move(marker));
 }
 
 void FlexGCWorker::Impl::checkMetalSpacing_main(gcRect* ptr1,
                                                 gcRect* ptr2,
                                                 bool isNDR)
 {
-
   // NSMetal does not need self-intersection
   // Minimum width rule handles outsite this function
   if (ptr1 == ptr2) {
@@ -743,9 +737,9 @@ void FlexGCWorker::Impl::checkMetalSpacing()
   if (targetNet_) {
     // layer --> net --> polygon --> maxrect
     for (int i
-         = std::max((frLayerNum) (getDesign()->getTech()->getBottomLayerNum()),
+         = std::max((frLayerNum)(getDesign()->getTech()->getBottomLayerNum()),
                     minLayerNum_);
-         i <= std::min((frLayerNum) (getDesign()->getTech()->getTopLayerNum()),
+         i <= std::min((frLayerNum)(getDesign()->getTech()->getTopLayerNum()),
                        maxLayerNum_);
          i++) {
       auto currLayer = getDesign()->getTech()->getLayer(i);
@@ -765,9 +759,9 @@ void FlexGCWorker::Impl::checkMetalSpacing()
   } else {
     // layer --> net --> polygon --> maxrect
     for (int i
-         = std::max((frLayerNum) (getDesign()->getTech()->getBottomLayerNum()),
+         = std::max((frLayerNum)(getDesign()->getTech()->getBottomLayerNum()),
                     minLayerNum_);
-         i <= std::min((frLayerNum) (getDesign()->getTech()->getTopLayerNum()),
+         i <= std::min((frLayerNum)(getDesign()->getTech()->getTopLayerNum()),
                        maxLayerNum_);
          i++) {
       auto currLayer = getDesign()->getTech()->getLayer(i);
@@ -809,14 +803,32 @@ void FlexGCWorker::Impl::checkMetalCornerSpacing_main(
   }
   frCoord cornerX = gtl::x(cornerPt);
   frCoord cornerY = gtl::y(cornerPt);
-  // skip if convex corner and prl is greater than 0
+  frCoord candX, candY;
+  // ensure this is a real corner to corner case
   if (con->getCornerType() == frCornerTypeEnum::CONVEX) {
-    if (cornerX > gtl::xl(*rect) && cornerX < gtl::xh(*rect)) {
+    if (cornerX >= (candX = gtl::xh(*rect))) {
+      if (cornerY >= (candY = gtl::yh(*rect))) {
+        if (corner->getDir() != frCornerDirEnum::SW)
+          return;
+      } else if (cornerY <= (candY = gtl::yl(*rect))) {
+        if (corner->getDir() != frCornerDirEnum::NW)
+          return;
+      } else
+        return;
+    } else if (cornerX <= (candX = gtl::xl(*rect))) {
+      if (cornerY >= (candY = gtl::yh(*rect))) {
+        if (corner->getDir() != frCornerDirEnum::SE)
+          return;
+      } else if (cornerY <= (candY = gtl::yl(*rect))) {
+        if (corner->getDir() != frCornerDirEnum::NE)
+          return;
+      } else
+        return;
+    } else
       return;
-    }
-    if (cornerY > gtl::yl(*rect) && cornerY < gtl::yh(*rect)) {
+    if (rect->getNet()
+        && !rect->getNet()->hasPolyCornerAt(candX, candY, rect->getLayerNum()))
       return;
-    }
   }
   // skip for EXCEPTEOL eolWidth
   if (con->hasExceptEol()) {
@@ -929,8 +941,7 @@ void FlexGCWorker::Impl::checkMetalCornerSpacing_main(
                                             gtl::xh(*rect),
                                             gtl::yh(*rect)),
                                       rect->isFixed()));
-      if (addMarker(std::move(marker))) {
-      }
+      addMarker(std::move(marker));
       return;
     } else {
       // TODO: implement others if necessary
@@ -1033,8 +1044,7 @@ void FlexGCWorker::Impl::checkMetalCornerSpacing_main(
           segNet->getOwner(),
           make_tuple(
               seg->getLayerNum(), frBox(llx, lly, urx, ury), seg->isFixed()));
-      if (addMarker(std::move(marker))) {
-      }
+      addMarker(std::move(marker));
     } else {
       // to be implemented
     }
@@ -1043,7 +1053,6 @@ void FlexGCWorker::Impl::checkMetalCornerSpacing_main(
 
 void FlexGCWorker::Impl::checkMetalCornerSpacing_main(gcCorner* corner)
 {
-
   auto layerNum = corner->getPrevEdge()->getLayerNum();
   frCoord maxSpcValX, maxSpcValY;
   checkMetalCornerSpacing_getMaxSpcVal(layerNum, maxSpcValX, maxSpcValY);
@@ -1070,9 +1079,9 @@ void FlexGCWorker::Impl::checkMetalCornerSpacing()
   if (targetNet_) {
     // layer --> net --> polygon --> corner
     for (int i
-         = std::max((frLayerNum) (getDesign()->getTech()->getBottomLayerNum()),
+         = std::max((frLayerNum)(getDesign()->getTech()->getBottomLayerNum()),
                     minLayerNum_);
-         i <= std::min((frLayerNum) (getDesign()->getTech()->getTopLayerNum()),
+         i <= std::min((frLayerNum)(getDesign()->getTech()->getTopLayerNum()),
                        maxLayerNum_);
          i++) {
       auto currLayer = getDesign()->getTech()->getLayer(i);
@@ -1092,9 +1101,9 @@ void FlexGCWorker::Impl::checkMetalCornerSpacing()
   } else {
     // layer --> net --> polygon --> corner
     for (int i
-         = std::max((frLayerNum) (getDesign()->getTech()->getBottomLayerNum()),
+         = std::max((frLayerNum)(getDesign()->getTech()->getBottomLayerNum()),
                     minLayerNum_);
-         i <= std::min((frLayerNum) (getDesign()->getTech()->getTopLayerNum()),
+         i <= std::min((frLayerNum)(getDesign()->getTech()->getTopLayerNum()),
                        maxLayerNum_);
          i++) {
       auto currLayer = getDesign()->getTech()->getLayer(i);
@@ -1151,9 +1160,7 @@ void FlexGCWorker::Impl::checkMetalShape_minWidth(
   marker->addSrc(net->getOwner());
   marker->addVictim(net->getOwner(), make_tuple(layerNum, box, false));
   marker->addAggressor(net->getOwner(), make_tuple(layerNum, box, false));
-  if (addMarker(std::move(marker))) {
-    // true marker
-  }
+  addMarker(std::move(marker));
 }
 
 void FlexGCWorker::Impl::checkMetalShape_minStep_helper(
@@ -1216,14 +1223,11 @@ void FlexGCWorker::Impl::checkMetalShape_minStep_helper(
   marker->addSrc(net->getOwner());
   marker->addVictim(net->getOwner(), make_tuple(layerNum, markerBox, false));
   marker->addAggressor(net->getOwner(), make_tuple(layerNum, markerBox, false));
-  if (addMarker(std::move(marker))) {
-    // true marker
-  }
+  addMarker(std::move(marker));
 }
 
 void FlexGCWorker::Impl::checkMetalShape_minArea(gcPin* pin)
 {
-
   if (ignoreMinArea_) {
     return;
   }
@@ -1288,16 +1292,13 @@ void FlexGCWorker::Impl::checkMetalShape_minArea(gcPin* pin)
   marker->addVictim(net->getOwner(), make_tuple(layerNum, markerBox, false));
   marker->addAggressor(net->getOwner(), make_tuple(layerNum, markerBox, false));
 
-  if (addMarker(std::move(marker))) {
-    // true marker
-  }
+  addMarker(std::move(marker));
 }
 
 void FlexGCWorker::Impl::checkMetalShape_lef58MinStep_noBetweenEol(
     gcPin* pin,
     frLef58MinStepConstraint* con)
 {
-
   auto poly = pin->getPolygon();
   auto layerNum = poly->getLayerNum();
   auto net = poly->getNet();
@@ -1370,16 +1371,13 @@ void FlexGCWorker::Impl::checkMetalShape_lef58MinStep_noBetweenEol(
     marker->addSrc(net->getOwner());
     marker->addVictim(net->getOwner(), make_tuple(layerNum, box, false));
     marker->addAggressor(net->getOwner(), make_tuple(layerNum, box, false));
-    if (addMarker(std::move(marker))) {
-      // true marker
-    }
+    addMarker(std::move(marker));
   }
 }
 
 // currently only support nobetweeneol
 void FlexGCWorker::Impl::checkMetalShape_lef58MinStep(gcPin* pin)
 {
-
   auto poly = pin->getPolygon();
   auto layerNum = poly->getLayerNum();
   // auto net = poly->getNet();
@@ -1395,7 +1393,6 @@ void FlexGCWorker::Impl::checkMetalShape_lef58MinStep(gcPin* pin)
 
 void FlexGCWorker::Impl::checkMetalShape_minStep(gcPin* pin)
 {
-
   auto poly = pin->getPolygon();
   auto layerNum = poly->getLayerNum();
   auto net = poly->getNet();
@@ -1496,7 +1493,6 @@ void FlexGCWorker::Impl::checkMetalShape_minStep(gcPin* pin)
 
 void FlexGCWorker::Impl::checkMetalShape_rectOnly(gcPin* pin)
 {
-
   auto poly = pin->getPolygon();
   auto layerNum = poly->getLayerNum();
   auto layerMinWidth
@@ -1564,9 +1560,7 @@ void FlexGCWorker::Impl::checkMetalShape_rectOnly(gcPin* pin)
         marker->addSrc(net->getOwner());
         marker->addVictim(net->getOwner(), make_tuple(layerNum, box, false));
         marker->addAggressor(net->getOwner(), make_tuple(layerNum, box, false));
-        if (addMarker(std::move(marker))) {
-          // true marker
-        }
+        addMarker(std::move(marker));
       }
     }
   }
@@ -1604,8 +1598,7 @@ void FlexGCWorker::Impl::checkMetalShape_offGrid(gcPin* pin)
       marker->addSrc(net->getOwner());
       marker->addVictim(net->getOwner(), make_tuple(layerNum, box, false));
       marker->addAggressor(net->getOwner(), make_tuple(layerNum, box, false));
-      if (addMarker(std::move(marker))) {
-      }
+      addMarker(std::move(marker));
     }
   }
 }
@@ -1647,8 +1640,7 @@ void FlexGCWorker::Impl::checkMetalShape_minEnclosedArea(gcPin* pin)
           marker->addVictim(net->getOwner(), make_tuple(layerNum, box, false));
           marker->addAggressor(net->getOwner(),
                                make_tuple(layerNum, box, false));
-          if (addMarker(std::move(marker))) {
-          }
+          addMarker(std::move(marker));
         }
       }
     }
@@ -1657,7 +1649,6 @@ void FlexGCWorker::Impl::checkMetalShape_minEnclosedArea(gcPin* pin)
 
 void FlexGCWorker::Impl::checkMetalShape_main(gcPin* pin)
 {
-
   auto poly = pin->getPolygon();
   auto layerNum = poly->getLayerNum();
   auto net = poly->getNet();
@@ -1703,9 +1694,9 @@ void FlexGCWorker::Impl::checkMetalShape()
   if (targetNet_) {
     // layer --> net --> polygon
     for (int i
-         = std::max((frLayerNum) (getDesign()->getTech()->getBottomLayerNum()),
+         = std::max((frLayerNum)(getDesign()->getTech()->getBottomLayerNum()),
                     minLayerNum_);
-         i <= std::min((frLayerNum) (getDesign()->getTech()->getTopLayerNum()),
+         i <= std::min((frLayerNum)(getDesign()->getTech()->getTopLayerNum()),
                        maxLayerNum_);
          i++) {
       auto currLayer = getDesign()->getTech()->getLayer(i);
@@ -1719,9 +1710,9 @@ void FlexGCWorker::Impl::checkMetalShape()
   } else {
     // layer --> net --> polygon
     for (int i
-         = std::max((frLayerNum) (getDesign()->getTech()->getBottomLayerNum()),
+         = std::max((frLayerNum)(getDesign()->getTech()->getBottomLayerNum()),
                     minLayerNum_);
-         i <= std::min((frLayerNum) (getDesign()->getTech()->getTopLayerNum()),
+         i <= std::min((frLayerNum)(getDesign()->getTech()->getTopLayerNum()),
                        maxLayerNum_);
          i++) {
       auto currLayer = getDesign()->getTech()->getLayer(i);
@@ -1800,7 +1791,6 @@ void FlexGCWorker::Impl::checkCutSpacing_short(
     gcRect* rect2,
     const gtl::rectangle_data<frCoord>& markerRect)
 {
-
   auto layerNum = rect1->getLayerNum();
   auto net1 = rect1->getNet();
   auto net2 = rect2->getNet();
@@ -1839,9 +1829,7 @@ void FlexGCWorker::Impl::checkCutSpacing_short(
                                         gtl::yh(*rect2)),
                                   rect2->isFixed()));
 
-  if (addMarker(std::move(marker))) {
-    // true marker
-  }
+  addMarker(std::move(marker));
 }
 
 void FlexGCWorker::Impl::checkCutSpacing_spc(
@@ -1959,9 +1947,7 @@ void FlexGCWorker::Impl::checkCutSpacing_spc(
                                         gtl::xh(*rect2),
                                         gtl::yh(*rect2)),
                                   rect2->isFixed()));
-  if (addMarker(std::move(marker))) {
-    // true marker
-  }
+  addMarker(std::move(marker));
 }
 
 void FlexGCWorker::Impl::checkCutSpacing_spc_diff_layer(
@@ -1970,7 +1956,6 @@ void FlexGCWorker::Impl::checkCutSpacing_spc_diff_layer(
     const gtl::rectangle_data<frCoord>& markerRect,
     frCutSpacingConstraint* con)
 {
-
   // no violation if fixed shapes
   if (rect1->isFixed() && rect2->isFixed()) {
     return;
@@ -2033,9 +2018,7 @@ void FlexGCWorker::Impl::checkCutSpacing_spc_diff_layer(
                                         gtl::xh(*rect2),
                                         gtl::yh(*rect2)),
                                   rect2->isFixed()));
-  if (addMarker(std::move(marker))) {
-    // true marker
-  }
+  addMarker(std::move(marker));
 }
 
 // check LEF58 SPACING constraint for cut layer
@@ -2210,7 +2193,6 @@ void FlexGCWorker::Impl::checkLef58CutSpacing_spc_adjCut(
     const gtl::rectangle_data<frCoord>& markerRect,
     frLef58CutSpacingConstraint* con)
 {
-
   auto layerNum = rect1->getLayerNum();
   auto net1 = rect1->getNet();
   auto net2 = rect2->getNet();
@@ -2350,9 +2332,7 @@ void FlexGCWorker::Impl::checkLef58CutSpacing_spc_adjCut(
                                         gtl::xh(*rect2),
                                         gtl::yh(*rect2)),
                                   rect2->isFixed()));
-  if (addMarker(std::move(marker))) {
-    // true marker
-  }
+  addMarker(std::move(marker));
 }
 
 // only works for GF14 syntax, not full rule support
@@ -2362,7 +2342,6 @@ void FlexGCWorker::Impl::checkLef58CutSpacing_spc_layer(
     const gtl::rectangle_data<frCoord>& markerRect,
     frLef58CutSpacingConstraint* con)
 {
-
   auto layerNum = rect1->getLayerNum();
   auto secondLayerNum = rect2->getLayerNum();
   auto net1 = rect1->getNet();
@@ -2514,8 +2493,7 @@ void FlexGCWorker::Impl::checkLef58CutSpacing_spc_layer(
                 secondLayerNum,
                 frBox(corner->x(), corner->y(), corner->x(), corner->y()),
                 corner->isFixed()));
-        if (addMarker(std::move(marker))) {
-        }
+        addMarker(std::move(marker));
       }
     } else if (con->hasExtension()) {
       ;
@@ -2635,8 +2613,7 @@ void FlexGCWorker::Impl::checkLef58CutSpacing_spc_layer(
                 secondLayerNum,
                 frBox(corner->x(), corner->y(), corner->x(), corner->y()),
                 corner->isFixed()));
-        if (addMarker(std::move(marker))) {
-        }
+        addMarker(std::move(marker));
       }
     } else if (con->hasAboveWidth()) {
       ;
@@ -2884,9 +2861,9 @@ void FlexGCWorker::Impl::checkCutSpacing()
   if (targetNet_) {
     // layer --> net --> polygon --> maxrect
     for (int i
-         = std::max((frLayerNum) (getDesign()->getTech()->getBottomLayerNum()),
+         = std::max((frLayerNum)(getDesign()->getTech()->getBottomLayerNum()),
                     minLayerNum_);
-         i <= std::min((frLayerNum) (getDesign()->getTech()->getTopLayerNum()),
+         i <= std::min((frLayerNum)(getDesign()->getTech()->getTopLayerNum()),
                        maxLayerNum_);
          i++) {
       auto currLayer = getDesign()->getTech()->getLayer(i);
@@ -2902,9 +2879,9 @@ void FlexGCWorker::Impl::checkCutSpacing()
   } else {
     // layer --> net --> polygon --> maxrect
     for (int i
-         = std::max((frLayerNum) (getDesign()->getTech()->getBottomLayerNum()),
+         = std::max((frLayerNum)(getDesign()->getTech()->getBottomLayerNum()),
                     minLayerNum_);
-         i <= std::min((frLayerNum) (getDesign()->getTech()->getTopLayerNum()),
+         i <= std::min((frLayerNum)(getDesign()->getTech()->getTopLayerNum()),
                        maxLayerNum_);
          i++) {
       auto currLayer = getDesign()->getTech()->getLayer(i);
@@ -3037,5 +3014,7 @@ int FlexGCWorker::Impl::main()
   checkMetalEndOfLine();
   // check CShort, cutSpc
   checkCutSpacing();
+  // check SpacingTable Influence
+  checkMetalSpacingTableInfluence();
   return 0;
 }
