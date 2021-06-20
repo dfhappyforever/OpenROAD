@@ -758,9 +758,8 @@ void FlexPA::prepPoint_pin_checkPoint_planar(
     ps->addToPin(pin);
   }
 
-
   // new gcWorker
-  FlexGCWorker gcWorker(getDesign(), logger_);
+  FlexGCWorker gcWorker(getTech(), logger_);
   gcWorker.setIgnoreMinArea();
   frBox extBox(bp.x() - 3000, bp.y() - 3000, bp.x() + 3000, bp.y() + 3000);
   gcWorker.setExtBox(extBox);
@@ -770,7 +769,7 @@ void FlexPA::prepPoint_pin_checkPoint_planar(
   } else {
     gcWorker.setTargetObj(pin->getTerm());
   }
-  gcWorker.initPA0();
+  gcWorker.initPA0(getDesign());
   if (instTerm) {
     if (instTerm->hasNet()) {
       gcWorker.addPAObj(ps.get(), instTerm->getNet());
@@ -837,9 +836,9 @@ void FlexPA::prepPoint_pin_checkPoint_via(
   }
 
   // check if ap is on the left/right boundary of the cell
+  frBox boundaryBBox;
   bool isLRBound = false;
   if (instTerm) {
-    frBox boundaryBBox;
     instTerm->getInst()->getBoundaryBBox(boundaryBBox);
     frCoord width = getDesign()->getTech()->getLayer(layerNum)->getWidth();
     if (bp.x() <= boundaryBBox.left() + 3 * width
@@ -854,47 +853,42 @@ void FlexPA::prepPoint_pin_checkPoint_via(
     auto via = make_unique<frVia>(viaDef);
     via->setOrigin(bp);
     via->getLayer1BBox(box);
+    if (instTerm) {
+      if (!boundaryBBox.contains(box))
+        continue;
+      frBox layer2BBox;
+      via->getLayer2BBox(layer2BBox);
+      if (!boundaryBBox.contains(layer2BBox))
+        continue;
+    }
+
+    frCoord maxExt = 0;
     gtl::rectangle_data<frCoord> viarect(
         box.left(), box.bottom(), box.right(), box.top());
     using namespace boost::polygon::operators;
-    gtl::polygon_90_set_data<frCoord> intersection = polyset & viarect;
-    gtl::rectangle_data<frCoord> intersection_extRect;
-    intersection.extents(intersection_extRect);
-    frCoord leftExt
-        = std::max(0, gtl::xl(intersection_extRect) - gtl::xl(viarect));
-    frCoord rightExt
-        = std::max(0, -gtl::xh(intersection_extRect) + gtl::xh(viarect));
-    frCoord bottomExt
-        = std::max(0, gtl::yl(intersection_extRect) - gtl::yl(viarect));
-    frCoord topExt
-        = std::max(0, -gtl::yh(intersection_extRect) + gtl::yh(viarect));
+    gtl::polygon_90_set_data<frCoord> intersection;
+    intersection += viarect;
+    intersection &= polyset;
     // via ranking criteria: max extension distance beyond pin shape
-    frCoord maxExt
-        = std::max(std::max(leftExt, rightExt), std::max(bottomExt, topExt));
-    if (isLRBound && !viainpin) {
-      maxExt = std::max(leftExt, rightExt);
+    vector<gtl::rectangle_data<frCoord>> intRects;
+    intersection.get_rectangles(intRects, gtl::orientation_2d_enum::HORIZONTAL);
+    for (auto& r : intRects) {
+      maxExt = max(maxExt, box.right() - gtl::xh(r));
+      maxExt = max(maxExt, gtl::xl(r) - box.left());
     }
-    if (viainpin && maxExt > 0) {
+    if (!isLRBound) {
+      if (intRects.size() > 1) {
+        intRects.clear();
+        intersection.get_rectangles(intRects,
+                                    gtl::orientation_2d_enum::VERTICAL);
+      }
+      for (auto& r : intRects) {
+        maxExt = max(maxExt, box.top() - gtl::yh(r));
+        maxExt = max(maxExt, gtl::yl(r) - box.bottom());
+      }
+    }
+    if (viainpin && maxExt)
       continue;
-    }
-    if (instTerm) {
-      frBox boundaryBBox;
-      instTerm->getInst()->getBoundaryBBox(boundaryBBox);
-      if (!boundaryBBox.contains(box)) {
-        continue;
-      }
-    }
-
-    // avoid layer2BBox outside of cell
-    if (instTerm) {
-      frBox layer2BBox, boundaryBBox;
-      via->getLayer2BBox(layer2BBox);
-      instTerm->getInst()->getBoundaryBBox(boundaryBBox);
-      if (!boundaryBBox.contains(layer2BBox)) {
-        continue;
-      }
-    }
-
     if (prepPoint_pin_checkPoint_via_helper(ap, via.get(), pin, instTerm)) {
       validViaDefs.insert(make_tuple(maxExt, idx, viaDef));
     }
@@ -922,7 +916,7 @@ bool FlexPA::prepPoint_pin_checkPoint_via_helper(frAccessPoint* ap,
   }
 
   // new gcWorker
-  FlexGCWorker gcWorker(getDesign(), logger_);
+  FlexGCWorker gcWorker(getTech(), logger_);
   gcWorker.setIgnoreMinArea();
   frBox extBox(bp.x() - 3000, bp.y() - 3000, bp.x() + 3000, bp.y() + 3000);
   gcWorker.setExtBox(extBox);
@@ -938,7 +932,7 @@ bool FlexPA::prepPoint_pin_checkPoint_via_helper(frAccessPoint* ap,
       gcWorker.setTargetObj(pin->getTerm());
   }
 
-  gcWorker.initPA0();
+  gcWorker.initPA0(getDesign());
   if (instTerm) {
     if (instTerm->hasNet()) {
       gcWorker.addPAObj(via, instTerm->getNet());
@@ -969,7 +963,6 @@ void FlexPA::prepPoint_pin_checkPoint(
     frPin* pin,
     frInstTerm* instTerm)
 {
-
   prepPoint_pin_checkPoint_planar(ap, polys, frDirEnum::W, pin, instTerm);
   prepPoint_pin_checkPoint_planar(ap, polys, frDirEnum::E, pin, instTerm);
   prepPoint_pin_checkPoint_planar(ap, polys, frDirEnum::S, pin, instTerm);
@@ -1442,7 +1435,6 @@ void FlexPA::prepPattern()
   if (VERBOSE > 0) {
     logger_->info(DRT, 84, "  complete {} groups", cnt);
   }
-
 }
 
 void FlexPA::revertAccessPoints()
@@ -1495,7 +1487,6 @@ void FlexPA::genInstPattern(std::vector<frInst*>& insts)
 void FlexPA::genInstPattern_init(std::vector<FlexDPNode>& nodes,
                                  const std::vector<frInst*>& insts)
 {
-
   // init virutal nodes
   int startNodeIdx = getFlatIdx(-1, 0, maxAccessPatternSize_);
   int endNodeIdx = getFlatIdx(insts.size(), 0, maxAccessPatternSize_);
@@ -1860,7 +1851,6 @@ void FlexPA::genPatterns(
     const std::vector<std::pair<frPin*, frInstTerm*>>& pins,
     int currUniqueInstIdx)
 {
-
   if (pins.empty()) {
     return;
   }
@@ -1880,7 +1870,6 @@ void FlexPA::genPatterns(
   std::set<std::vector<int>> instAccessPatterns;
   std::set<std::pair<int, int>> usedAccessPoints;
   std::set<std::pair<int, int>> violAccessPoints;
-
 
   genPatterns_init(nodes,
                    pins,
@@ -2053,7 +2042,7 @@ bool FlexPA::genPatterns_gc(frBlockObject* targetObj,
     return false;
   }
 
-  FlexGCWorker gcWorker(getDesign(), logger_);
+  FlexGCWorker gcWorker(getTech(), logger_);
   gcWorker.setIgnoreMinArea();
 
   frCoord llx = std::numeric_limits<frCoord>::max();
@@ -2076,7 +2065,7 @@ bool FlexPA::genPatterns_gc(frBlockObject* targetObj,
   gcWorker.setTargetObj(targetObj);
   gcWorker.setIgnoreDB();
   // cout <<flush;
-  gcWorker.initPA0();
+  gcWorker.initPA0(getDesign());
   for (auto& [connFig, owner] : objs) {
     gcWorker.addPAObj(connFig, owner);
   }

@@ -26,6 +26,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "triton_route/TritonRoute.h"
+
 #include <fstream>
 #include <iostream>
 
@@ -43,7 +45,6 @@
 #include "rp/FlexRP.h"
 #include "sta/StaMain.hh"
 #include "ta/FlexTA.h"
-#include "triton_route/TritonRoute.h"
 
 using namespace std;
 using namespace fr;
@@ -152,7 +153,7 @@ void TritonRoute::init()
       BOTTOM_ROUTING_LAYER = layer->getLayerNum();
     } else {
       logger_->warn(utl::DRT,
-                    251,
+                    272,
                     "bottomRoutingLayer {} not found",
                     BOTTOM_ROUTING_LAYER_NAME);
     }
@@ -164,7 +165,7 @@ void TritonRoute::init()
       TOP_ROUTING_LAYER = layer->getLayerNum();
     } else {
       logger_->warn(utl::DRT,
-                    252,
+                    273,
                     "topRoutingLayer {} not found",
                     TOP_ROUTING_LAYER_NAME);
     }
@@ -271,7 +272,7 @@ void TritonRoute::readParams(const string& fileName)
           ++readParamCnt;
         } else if (field == "outputTA") {
           logger_->warn(
-              utl::DRT, 171, "deprecated outputTA param in params file");
+              utl::DRT, 266, "deprecated outputTA param in params file");
         } else if (field == "output") {
           logger_->warn(
               utl::DRT, 205, "deprecated output param in params file");
@@ -288,9 +289,10 @@ void TritonRoute::readParams(const string& fileName)
           CMAP_FILE = value;
           ++readParamCnt;
         } else if (field == "threads") {
-          logger_->warn(
-              utl::DRT, 253, "deprecated threads param in params file."
-                             " Use 'set_thread_count'");
+          logger_->warn(utl::DRT,
+                        274,
+                        "deprecated threads param in params file."
+                        " Use 'set_thread_count'");
           ++readParamCnt;
         } else if (field == "verbose")
           VERBOSE = atoi(value.c_str());

@@ -26,6 +26,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "FlexTA.h"
+
 #include <omp.h>
 
 #include <algorithm>
@@ -33,7 +35,6 @@
 #include <iostream>
 #include <sstream>
 
-#include "FlexTA.h"
 #include "db/infra/frTime.h"
 #include "frProfileTask.h"
 #include "global.h"
@@ -365,7 +366,7 @@ void FlexTA::searchRepair(int iter, int size, int offset)
 
     if (VERBOSE > 0) {
       logger_->info(DRT,
-                    185,
+                    268,
                     "Done with {} horizontal wires in {} frboxes and "
                     "{} vertical wires in {} frboxes.",
                     numAssignedH,
