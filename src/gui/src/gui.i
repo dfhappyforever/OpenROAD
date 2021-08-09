@@ -94,6 +94,7 @@ odb::Point make_point(double x, double y)
 %}
 
 %include "../../Exception.i"
+%include "std_string.i"
 
 %inline %{
 
@@ -234,5 +235,101 @@ void fit()
   auto gui = gui::Gui::get();
   gui->fit();
 }
+
+void save_image(const char* filename)
+{
+  if (!check_gui("save_image")) {
+    return;
+  }
+  auto gui = gui::Gui::get();
+  gui->saveImage(filename);
+}
+
+void save_image(const char* filename, double xlo, double ylo, double xhi, double yhi)
+{
+  if (!check_gui("save_image")) {
+    return;
+  }
+  auto gui = gui::Gui::get();
+  gui->saveImage(filename, make_rect(xlo, ylo, xhi, yhi));
+}
+
+void clear_rulers()
+{
+  if (!check_gui("clear_rulers")) {
+    return;
+  }
+  auto gui = gui::Gui::get();
+  gui->clearRulers();
+}
+
+void clear_selections()
+{
+  if (!check_gui("clear_selections")) {
+    return;
+  }
+  auto gui = gui::Gui::get();
+  gui->clearSelections();
+}
+
+void clear_highlights(int highlight_group = 0)
+{
+  if (!check_gui("clear_highlights")) {
+    return;
+  }
+  auto gui = gui::Gui::get();
+  gui->clearHighlights(highlight_group);
+}
+
+void set_display_controls(const char* name, const char* display_type, bool value)
+{
+  if (!check_gui("set_display_controls")) {
+    return;
+  }
+  auto gui = gui::Gui::get();
+  
+  std::string disp_type = display_type;
+  // make lower case
+  std::transform(disp_type.begin(), 
+                 disp_type.end(), 
+                 disp_type.begin(), 
+                 [](char c) { return std::tolower(c); });
+  if (disp_type == "visible") {
+    gui->setDisplayControlsVisible(name, value);
+  } else if (disp_type == "selectable") {
+    gui->setDisplayControlsSelectable(name, value);
+  } else {
+    auto logger = ord::OpenRoad::openRoad()->getLogger();
+    logger->error(GUI, 7, "Unknown display control type: {}", display_type);
+  }
+}
+
+const std::string create_toolbar_button(const char* name, const char* text, const char* script, bool echo)
+{
+  if (!check_gui("create_toolbar_button")) {
+    return "";
+  }
+  auto gui = gui::Gui::get();
+  return gui->addToolbarButton(name, text, script, echo);
+}
+
+void remove_toolbar_button(const char* name)
+{
+  if (!check_gui("remove_toolbar_button")) {
+    return;
+  }
+  auto gui = gui::Gui::get();
+  gui->removeToolbarButton(name);
+}
+
+const std::string input_dialog(const char* title, const char* question)
+{
+  if (!check_gui("input_dialog")) {
+    return "";
+  }
+  auto gui = gui::Gui::get();
+  return gui->requestUserInput(title, question);
+}
+
 %} // inline
 
