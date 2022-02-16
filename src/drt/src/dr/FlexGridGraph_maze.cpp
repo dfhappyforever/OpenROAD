@@ -33,7 +33,7 @@
 using namespace std;
 using namespace fr;
 
-bool debugMaze = false;
+int debugMazeIter = std::numeric_limits<int>().max();
 void FlexGridGraph::expand(FlexWavefrontGrid& currGrid,
                            const frDirEnum& dir,
                            const FlexMazeIdx& dstMazeIdx1,
@@ -148,7 +148,7 @@ void FlexGridGraph::expand(FlexWavefrontGrid& currGrid,
     // add to wavefront
     wavefront_.push(nextWavefrontGrid);
   }
-  if (debugMaze)
+  if (drWorker_->getDRIter() >= debugMazeIter)
         cout << "Creating " << nextWavefrontGrid.x() << " " << nextWavefrontGrid.y() << " " << nextWavefrontGrid.z() << " coords: " << xCoords_[nextWavefrontGrid.x()] 
                 << " " << yCoords_[nextWavefrontGrid.y()] << 
                   " cost " << nextWavefrontGrid.getCost() << " g " << nextWavefrontGrid.getPathCost() << "\n";
@@ -247,10 +247,10 @@ frCost FlexGridGraph::getEstCost(const FlexMazeIdx& src,
           auto gap = abs(nextPoint.y() - dstPoint1.y());
           if (gap
               && (getTech()->isVia2ViaForbiddenLen(
-                      gridZ, false, false, false, gap, ndr_, false)
+                      gridZ, false, false, false, gap, ndr_)
                   || layerNum - 2 < BOTTOM_ROUTING_LAYER)
               && (getTech()->isVia2ViaForbiddenLen(
-                      gridZ, true, true, false, gap, ndr_, false)
+                      gridZ, true, true, false, gap, ndr_)
                   || layerNum + 2 > getTech()->getTopLayerNum())) {
             forbiddenPenalty = layer->getPitch() * ggDRCCost_ * 20;
           }
@@ -258,10 +258,10 @@ frCost FlexGridGraph::getEstCost(const FlexMazeIdx& src,
           auto gap = abs(nextPoint.x() - dstPoint1.x());
           if (gap
               && (getTech()->isVia2ViaForbiddenLen(
-                      gridZ, false, false, true, gap, ndr_, false)
+                      gridZ, false, false, true, gap, ndr_)
                   || layerNum - 2 < BOTTOM_ROUTING_LAYER)
               && (getTech()->isVia2ViaForbiddenLen(
-                      gridZ, true, true, true, gap, ndr_, false)
+                      gridZ, true, true, true, gap, ndr_)
                   || layerNum + 2 > getTech()->getTopLayerNum())) {
             forbiddenPenalty = layer->getPitch() * ggDRCCost_ * 20;
           }
@@ -371,8 +371,7 @@ frCost FlexGridGraph::getNextPathCost(
                                             !isCurrViaUp,
                                             false,
                                             currVLengthY,
-                                            ndr_,
-                                            false)) {
+                                            ndr_)) {
       isForbiddenVia2Via = true;
       // check only x
     } else if (currVLengthX > 0 && currVLengthY == 0
@@ -381,8 +380,7 @@ frCost FlexGridGraph::getNextPathCost(
                                                    !isCurrViaUp,
                                                    true,
                                                    currVLengthX,
-                                                   ndr_,
-                                                   false)) {
+                                                   ndr_)) {
       isForbiddenVia2Via = true;
       // check both x and y
     } else if (currVLengthX > 0 && currVLengthY > 0
@@ -403,11 +401,15 @@ frCost FlexGridGraph::getNextPathCost(
     }
 
     if (isForbiddenVia2Via) {
-      if (drWorker_ && drWorker_->getDRIter() >= 3) {
-        nextPathCost = INT_MAX / 2;  //+= ggMarkerCost_ * edgeLength;
-      } else {
-        nextPathCost = INT_MAX / 2;  //+= ggDRCCost_ * edgeLength;
-      }
+        if (drWorker_) {
+            if (drWorker_->getDRIter() >= debugMazeIter)
+              cout << "isForbiddenVia2Via\n";
+            if (drWorker_->getDRIter() >= 3) {
+              nextPathCost += 2*ggMarkerCost_ * edgeLength;
+            } else {
+              nextPathCost += 2*ggDRCCost_ * edgeLength;
+            }
+        }
     }
   }
 
@@ -452,11 +454,15 @@ frCost FlexGridGraph::getNextPathCost(
       }
     }
     if (isForbiddenTLen) {
-      if (drWorker_ && drWorker_->getDRIter() >= 3) {
-        nextPathCost += ggDRCCost_ * edgeLength;
-      } else {
-        nextPathCost += ggMarkerCost_ * edgeLength;
-      }
+        if (drWorker_) {
+            if (drWorker_->getDRIter() >= debugMazeIter)
+              cout << "isForbiddenTLen\n";
+            if (drWorker_->getDRIter() >= 3) {
+              nextPathCost += 2*ggDRCCost_ * edgeLength;
+            } else {
+              nextPathCost += 2*ggMarkerCost_ * edgeLength;
+            }
+        }
     }
   }
 
@@ -553,9 +559,9 @@ frCoord FlexGridGraph::getCostsNDR(frMIdx gridX,
   // get costs
   for (frMIdx x = startX; x <= endX; x++) {
     for (frMIdx y = startY; y <= endY; y++) {
-      cost += (hasFixedShapeCost(x, y, gridZ, dir) ? FIXEDSHAPECOST * el : 0);
-      cost += (hasRouteShapeCost(x, y, gridZ, dir) ? ggDRCCost_ * el : 0);
-      cost += (hasMarkerCost(x, y, gridZ, dir) ? ggMarkerCost_ * el : 0);
+      cost += (hasFixedShapeCostAdj(x, y, gridZ, dir) ? FIXEDSHAPECOST * el : 0);
+      cost += (hasRouteShapeCostAdj(x, y, gridZ, dir) ? ggDRCCost_ * el : 0);
+      cost += (hasMarkerCostAdj(x, y, gridZ, dir) ? ggMarkerCost_ * el : 0);
       cost += (isBlocked(x, y, gridZ, dir)
                    ? BLOCKCOST * layer->getMinWidth() * 20
                    : 0);
@@ -589,10 +595,10 @@ frCoord FlexGridGraph::getViaCostsNDR(frMIdx gridX,
   endX = getUpperBoundIndex(xCoords_, x2 = (xCoords_[gridX] + r));
   startY = getLowerBoundIndex(yCoords_, y1 = (yCoords_[gridY] - r));
   endY = getUpperBoundIndex(yCoords_, y2 = (yCoords_[gridY] + r));
-  cost += (hasFixedShapeCost(gridX, gridY, gridZ, dir) ? FIXEDSHAPECOST * el
+  cost += (hasFixedShapeCostAdj(gridX, gridY, gridZ, dir) ? FIXEDSHAPECOST * el
                                                        : 0);
-  cost += (hasRouteShapeCost(gridX, gridY, gridZ, dir) ? ggDRCCost_ * el : 0);
-  cost += (hasMarkerCost(gridX, gridY, gridZ, dir) ? ggMarkerCost_ * el : 0);
+  cost += (hasRouteShapeCostAdj(gridX, gridY, gridZ, dir) ? ggDRCCost_ * el : 0);
+  cost += (hasMarkerCostAdj(gridX, gridY, gridZ, dir) ? ggMarkerCost_ * el : 0);
   cost += (isBlocked(gridX, gridY, gridZ, dir)
                ? BLOCKCOST * layer->getMinWidth() * 20
                : 0);
@@ -625,9 +631,9 @@ frCoord FlexGridGraph::getViaCostsNDR(frMIdx gridX,
   // get costs
   for (frMIdx x = startX; x <= endX; x++) {
     for (frMIdx y = startY; y <= endY; y++) {
-      cost += (hasFixedShapeCost(x, y, gridZ, dir) ? FIXEDSHAPECOST * el : 0);
-      cost += (hasRouteShapeCost(x, y, gridZ, dir) ? ggDRCCost_ * el : 0);
-      cost += (hasMarkerCost(x, y, gridZ, dir) ? ggMarkerCost_ * el : 0);
+      cost += (hasFixedShapeCostAdj(x, y, gridZ, dir) ? FIXEDSHAPECOST * el : 0);
+      cost += (hasRouteShapeCostAdj(x, y, gridZ, dir) ? ggDRCCost_ * el : 0);
+      cost += (hasMarkerCostAdj(x, y, gridZ, dir) ? ggMarkerCost_ * el : 0);
     }
   }
   return cost;
@@ -640,9 +646,9 @@ frCost FlexGridGraph::getCosts(frMIdx gridX,
                                frLayer* layer) const
 {
   bool gridCost = hasGridCost(gridX, gridY, gridZ, dir);
-  bool drcCost = hasRouteShapeCost(gridX, gridY, gridZ, dir);
-  bool markerCost = hasMarkerCost(gridX, gridY, gridZ, dir);
-  bool shapeCost = hasFixedShapeCost(gridX, gridY, gridZ, dir);
+  bool drcCost = hasRouteShapeCostAdj(gridX, gridY, gridZ, dir);
+  bool markerCost = hasMarkerCostAdj(gridX, gridY, gridZ, dir);
+  bool shapeCost = hasFixedShapeCostAdj(gridX, gridY, gridZ, dir);
   bool blockCost = isBlocked(gridX, gridY, gridZ, dir);
   bool guideCost = hasGuide(gridX, gridY, gridZ, dir);
   frCoord edgeLength = getEdgeLength(gridX, gridY, gridZ, dir);
@@ -827,6 +833,12 @@ bool FlexGridGraph::search(vector<FlexMazeIdx>& connComps,
                            const Point& centerPt,
                            map<FlexMazeIdx, frBox3D*>& mazeIdx2TaperBox)
 {
+  if (drWorker_->getDRIter() >= debugMazeIter) {
+    cout << "INIT search: target pin " << nextPin->getName() << "\nsource points:\n";
+    for (auto& idx : connComps)
+      cout << idx.x() << " " << idx.y() << " " << idx.z() 
+          << " coords: " << xCoords_[idx.x()] << " " << yCoords_[idx.y()] << "\n";
+  }
   // prep nextPinBox
   frMIdx xDim, yDim, zDim;
   getDim(xDim, yDim, zDim);
@@ -887,6 +899,10 @@ bool FlexGridGraph::search(vector<FlexMazeIdx>& connComps,
     if (graphics_) {
       graphics_->searchNode(this, currGrid);
     }
+    if (drWorker_->getDRIter() >= debugMazeIter)
+        cout << "Expanding " << currGrid.x() << " " << currGrid.y() << " " << currGrid.z() 
+          << " coords: " << xCoords_[currGrid.x()] << " " << yCoords_[currGrid.y()] << 
+          " cost " << currGrid.getCost() << " g " << currGrid.getPathCost() << "\n";
     if (isDst(currGrid.x(), currGrid.y(), currGrid.z())) {
       traceBackPath(currGrid, path, connComps, ccMazeIdx1, ccMazeIdx2);
       return true;

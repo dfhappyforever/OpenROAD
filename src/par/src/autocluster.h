@@ -4,20 +4,17 @@
 #include <iostream>
 #include <queue>
 #include <string>
-#include <unordered_map>
+#include <map>
 #include <vector>
-
-
-
 
 #include "db_sta/dbReadVerilog.hh"
 #include "db_sta/dbSta.hh"
-#include "sta/Bfs.hh"
 #include "odb/db.h"
-#include "sta/Liberty.hh"
+#include "sta/Bfs.hh"
 #include "sta/Graph.hh"
-#include "utl/Logger.h"
+#include "sta/Liberty.hh"
 #include "sta/Sta.hh"
+#include "utl/Logger.h"
 
 namespace par {
 
@@ -62,12 +59,12 @@ class Cluster
   std::vector<sta::Instance*> getMacros() const { return macro_vec_; }
   unsigned int getNumMacro() const { return macro_vec_.size(); }
   unsigned int getNumInst() const { return inst_vec_.size(); }
-  std::unordered_map<int, unsigned int> getInputConnections() const
+  std::map<int, unsigned int> getInputConnections() const
   {
     return input_connection_map_;
   }
 
-  std::unordered_map<int, unsigned int> getOutputConnections() const
+  std::map<int, unsigned int> getOutputConnections() const
   {
     return output_connection_map_;
   }
@@ -164,8 +161,8 @@ class Cluster
   std::vector<std::string> logical_module_vec_;
   std::vector<sta::Instance*> inst_vec_;
   std::vector<sta::Instance*> macro_vec_;
-  std::unordered_map<int, unsigned int> input_connection_map_;
-  std::unordered_map<int, unsigned int> output_connection_map_;
+  std::map<int, unsigned int> input_connection_map_;
+  std::map<int, unsigned int> output_connection_map_;
 };
 
 struct Metric
@@ -213,7 +210,7 @@ class AutoClusterMgr
   odb::dbDatabase* db_ = nullptr;
   odb::dbBlock* block_ = nullptr;
   sta::dbSta* sta_ = nullptr;
-  utl::Logger* logger_;
+  utl::Logger* logger_ = nullptr;
   unsigned int max_num_macro_ = 0;
   unsigned int min_num_macro_ = 0;
   unsigned int max_num_inst_ = 0;
@@ -237,15 +234,14 @@ class AutoClusterMgr
   std::vector<float> L_pin_;
   std::vector<float> R_pin_;
 
-
   // Map all the BTerms to an IORegion
-  std::unordered_map<std::string, IORegion> bterm_map_;
-  std::unordered_map<IORegion, int> bundled_io_map_;
-  std::unordered_map<sta::Instance*, Metric> logical_cluster_map_;
-  std::unordered_map<int, Cluster*> cluster_map_;
-  std::unordered_map<sta::Instance*, int> inst_map_;
+  std::map<std::string, IORegion> bterm_map_;
+  std::map<IORegion, int> bundled_io_map_;
+  std::map<sta::Instance*, Metric> logical_cluster_map_;
+  std::map<int, Cluster*> cluster_map_;
+  std::map<sta::Instance*, int> inst_map_;
 
-  std::unordered_map<int, int> virtual_map_;
+  std::map<int, int> virtual_map_;
 
   std::map<sta::Instance*, int> buffer_map_;
   int buffer_id_ = -1;
@@ -253,18 +249,19 @@ class AutoClusterMgr
   std::vector<sta::Net*> buffer_net_list_;
 
   // timing-driven related function
-  unsigned int num_hops_;
-  unsigned int timing_weight_;
-  
+  unsigned int num_hops_ = 5;
+  unsigned int timing_weight_ = 1;
+
   std::vector<sta::Instance*> macros_;
   std::vector<sta::Instance*> seeds_;
-  std::unordered_map<sta::Vertex*, std::unordered_map<sta::Pin*, int> > vertex_fanins_;
-  std::unordered_map<int, std::unordered_map<sta::Pin*, int> > virtual_vertex_map_;  
-  std::unordered_map<int, std::unordered_map<int, int> > virtual_timing_map_;
-  std::unordered_map<sta::Pin*, sta::Instance*> pin_inst_map_;
+  std::map<sta::Vertex*, std::map<sta::Pin*, int>>
+      vertex_fanins_;
+  std::map<int, std::map<sta::Pin*, int>>
+      virtual_vertex_map_;
+  std::map<int, std::map<int, int>> virtual_timing_map_;
+  std::map<sta::Pin*, sta::Instance*> pin_inst_map_;
   void findAdjacencies();
-  
-  
+
   void seedFaninBfs(sta::BfsFwdIterator& bfs);
   void findFanins(sta::BfsFwdIterator& bfs);
   sta::Pin* findSeqOutPin(sta::Instance* inst, sta::LibertyPort* out_port);
@@ -273,7 +270,6 @@ class AutoClusterMgr
   void addFanin(sta::Vertex*, sta::Pin*, int num_bit);
   void addWeight(int src_id, int target_id, int weight);
   void calculateSeed();
-
 
   std::vector<Cluster*> cluster_list_;
   std::vector<Cluster*> merge_cluster_list_;
@@ -313,18 +309,18 @@ class AutoClusterMgr
                      std::vector<int>& col_idx,
                      std::vector<int>& row_idx,
                      std::vector<double>& edge_weight,
-                     std::unordered_map<Cluster*, int>& node_map,
-                     std::unordered_map<int, sta::Instance*>& idx_to_inst,
-                     std::unordered_map<sta::Instance*, int>& inst_to_idx);
+                     std::map<Cluster*, int>& node_map,
+                     std::map<int, sta::Instance*>& idx_to_inst,
+                     std::map<sta::Instance*, int>& inst_to_idx);
   void MLPartBufferNetUtil(
       const int src_id,
       int& count,
       std::vector<int>& col_idx,
       std::vector<int>& row_idx,
       std::vector<double>& edge_weight,
-      std::unordered_map<Cluster*, int>& node_map,
-      std::unordered_map<int, sta::Instance*>& idx_to_inst,
-      std::unordered_map<sta::Instance*, int>& inst_to_idx);
+      std::map<Cluster*, int>& node_map,
+      std::map<int, sta::Instance*>& idx_to_inst,
+      std::map<sta::Instance*, int>& inst_to_idx);
 };
 
 }  // namespace par

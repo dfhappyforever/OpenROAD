@@ -65,18 +65,20 @@ SelectedItemModel::SelectedItemModel(const Selected& object,
 
 QVariant SelectedItemModel::data(const QModelIndex& index, int role) const
 {
-  if (index.column() == 1) {
-    if (role == Qt::BackgroundRole) {
-      bool has_editor = itemFromIndex(index)->data(EditorItemDelegate::editor_).isValid();
+  if (role == Qt::ForegroundRole) {
+    const bool has_selected = itemFromIndex(index)->data(EditorItemDelegate::selected_).isValid();
 
-      if (has_editor) {
-        return QBrush(editable_item_);
-      }
-    } else if (role == Qt::ForegroundRole) {
-      bool has_selected = itemFromIndex(index)->data(EditorItemDelegate::selected_).isValid();
+    if (has_selected){
+      return QBrush(selectable_item_);
+    }
+  } else {
+    if (index.column() == 1) {
+      if (role == Qt::BackgroundRole) {
+        const bool has_editor = itemFromIndex(index)->data(EditorItemDelegate::editor_).isValid();
 
-      if (has_selected){
-        return QBrush(selectable_item_);
+        if (has_editor) {
+          return QBrush(editable_item_);
+        }
       }
     }
   }
@@ -128,16 +130,16 @@ void SelectedItemModel::makePropertyItem(const Descriptor::Property& property, Q
 
   // For a SelectionSet a row is created with the set items
   // as children rows
-  if (auto sel_set = std::any_cast<SelectionSet>(&value)) {
-    value_item = makeItem(name_item, sel_set->begin(), sel_set->end());
+  if (auto sel_set = std::any_cast<Descriptor::PropertyList>(&value)) {
+    value_item = makePropertyList(name_item, sel_set->begin(), sel_set->end());
+  } else if (auto sel_set = std::any_cast<SelectionSet>(&value)) {
+    value_item = makeList(name_item, sel_set->begin(), sel_set->end());
   } else if (auto v_list = std::any_cast<std::vector<std::any>>(&value)) {
-    value_item = makeItem(name_item, v_list->begin(), v_list->end());
+    value_item = makeList(name_item, v_list->begin(), v_list->end());
   } else if (auto v_set = std::any_cast<std::set<std::any>>(&value)) {
-    value_item = makeItem(name_item, v_set->begin(), v_set->end());
-  } else if (auto selected = std::any_cast<Selected>(&value)) {
-    value_item = makeItem(*selected);
+    value_item = makeList(name_item, v_set->begin(), v_set->end());
   } else {
-    value_item = makeItem(QString::fromStdString(property.toString()));
+    value_item = makeItem(value);
   }
 }
 
@@ -149,20 +151,24 @@ QStandardItem* SelectedItemModel::makeItem(const QString& name)
   return item;
 }
 
-QStandardItem* SelectedItemModel::makeItem(const std::any& item)
+QStandardItem* SelectedItemModel::makeItem(const std::any& item, bool short_name)
 {
-  return makeItem(QString::fromStdString(Descriptor::Property::toString(item)));
-}
-
-QStandardItem* SelectedItemModel::makeItem(const Selected& selected)
-{
-  auto item = makeItem(QString::fromStdString(selected.getName()));
-  item->setData(QVariant::fromValue(selected), EditorItemDelegate::selected_);
-  return item;
+  if (auto selected = std::any_cast<Selected>(&item)) {
+    QStandardItem* item = nullptr;
+    if (short_name) {
+      item = makeItem(QString::fromStdString(selected->getShortName()));
+    } else {
+      item = makeItem(QString::fromStdString(selected->getName()));
+    }
+    item->setData(QVariant::fromValue(*selected), EditorItemDelegate::selected_);
+    return item;
+  } else {
+    return makeItem(QString::fromStdString(Descriptor::Property::toString(item)));
+  }
 }
 
 template<typename Iterator>
-QStandardItem* SelectedItemModel::makeItem(QStandardItem* name_item, const Iterator& begin, const Iterator& end)
+QStandardItem* SelectedItemModel::makeList(QStandardItem* name_item, const Iterator& begin, const Iterator& end)
 {
   int index = 0;
   for (Iterator use_itr = begin; use_itr != end; ++use_itr) {
@@ -172,6 +178,17 @@ QStandardItem* SelectedItemModel::makeItem(QStandardItem* name_item, const Itera
   }
 
   return makeItem(QString::number(index) + " items");
+}
+
+template<typename Iterator>
+QStandardItem* SelectedItemModel::makePropertyList(QStandardItem* name_item, const Iterator& begin, const Iterator& end)
+{
+  for (Iterator use_itr = begin; use_itr != end; ++use_itr) {
+    auto& [name, value] = *use_itr;
+    name_item->appendRow({makeItem(name, true), makeItem(value)});
+  }
+
+  return makeItem(QString::number(name_item->rowCount()) + " items");
 }
 
 void SelectedItemModel::makeItemEditor(const std::string& name,
@@ -551,7 +568,7 @@ int ActionLayout::rowWidth(ItemList& row) const
 
 ////////
 
-Inspector::Inspector(const SelectionSet& selected, QWidget* parent)
+Inspector::Inspector(const SelectionSet& selected, const HighlightSet& highlighted, QWidget* parent)
     : QDockWidget("Inspector", parent),
       view_(new ObjectTree(this)),
       model_(new SelectedItemModel(selection_, Qt::blue, QColor(0xc6, 0xff, 0xc4) /* pale green */, this)),
@@ -563,17 +580,17 @@ Inspector::Inspector(const SelectionSet& selected, QWidget* parent)
       button_frame_(new QFrame(this)),
       button_next_(new QPushButton("Next \u2192", this)), // \u2192 = right arrow
       button_prev_(new QPushButton("\u2190 Previous", this)), // \u2190 = left arrow
-      selected_itr_label_(new QLabel(this))
+      selected_itr_label_(new QLabel(this)),
+      mouse_timer_(),
+      clicked_index_(),
+      highlighted_(highlighted)
 {
   setObjectName("inspector");  // for settings
   view_->setModel(model_);
   view_->setItemDelegate(new EditorItemDelegate(model_, this));
 
   QHeaderView* header = view_->header();
-  header->setSectionResizeMode(Name, QHeaderView::Stretch);
-  header->setSectionResizeMode(Value, QHeaderView::ResizeToContents);
-  // QTreeView defaults stretchLastSection to true, overriding setSectionResizeMode
-  header->setStretchLastSection(false);
+  header->setSectionResizeMode(Name, QHeaderView::Interactive);
 
   QWidget* container = new QWidget(this);
 
@@ -642,6 +659,32 @@ Inspector::Inspector(const SelectionSet& selected, QWidget* parent)
           SLOT(indexClicked()));
 }
 
+void Inspector::adjustHeaders()
+{
+  if (selection_) {
+    // resize to fit the contents
+    view_->resizeColumnToContents(Name);
+    view_->resizeColumnToContents(Value);
+
+    const auto margins = view_->contentsMargins();
+    const int width = view_->size().width() - margins.left() - margins.right();
+    const int name_width = view_->columnWidth(Name);
+    const int value_width = view_->columnWidth(Value);
+
+    const int max_name_width = width - value_width;
+
+    // check if name column is wider than the widest available
+    if (name_width > max_name_width) {
+      const int min_name_width = 0.5 * name_width;
+      // check if using a smaller name column will be useful,
+      // otherwise keep full width column.
+      if (min_name_width <= max_name_width) {
+        view_->setColumnWidth(Name, max_name_width);
+      }
+    }
+  }
+}
+
 int Inspector::selectNext()
 {
   if (selected_.empty()) {
@@ -683,6 +726,10 @@ int Inspector::getSelectedIteratorPosition()
 
 void Inspector::inspect(const Selected& object)
 {
+  if (deselect_action_) {
+    deselect_action_();
+  }
+
   selection_ = object;
   emit selection(object);
 
@@ -703,13 +750,23 @@ void Inspector::inspect(const Selected& object)
     }
   }
 
-  view_->resizeColumnToContents(0);
+  adjustHeaders();
 }
 
 void Inspector::reload()
 {
   loadActions();
   model_->updateObject();
+}
+
+void Inspector::highlightChanged()
+{
+  loadActions();
+}
+
+void Inspector::focusNetsChanged()
+{
+  loadActions();
 }
 
 void Inspector::loadActions()
@@ -723,34 +780,76 @@ void Inspector::loadActions()
     delete widget; // no longer in the map so it's safe to delete
   }
 
+  deselect_action_ = Descriptor::ActionCallback();
+
   if (!selection_) {
     return;
   }
 
   // add action buttons
+  for (const auto& action : selection_.getActions()) {
+    if (action.name == Descriptor::deselect_action_) {
+      deselect_action_ = action.callback;
+    } else {
+      makeAction(action);
+    }
+  }
+  if (isHighlighted(selection_)) {
+    makeAction({"Remove from highlight", [this]() -> Selected {
+      emit removeHighlight({&selection_});
+      return selection_;
+    }});
+  } else {
+    makeAction({"Add to highlight", [this]() -> Selected {
+      emit addHighlight({selection_});
+      return selection_;
+    }});
+  }
+}
+
+void Inspector::makeAction(const Descriptor::Action& action)
+{
   std::vector<std::pair<std::string, QString>> button_replacements{
     {"Delete", ":/delete.png"},
-    {"Zoom to", ":/zoom_to.png"}
+    {"Zoom to", ":/zoom_to.png"},
+    {"Remove from highlight", ":/highlight_off.png"},
+    {"Add to highlight", ":/highlight_on.png"},
+    {"Focus", ":/focus.png"},
+    {"De-focus", ":/defocus.png"}
   };
-  for (const auto& [name, action] : selection_.getActions()) {
-    QPushButton* button = nullptr;
-    for (const auto& [label, icon] : button_replacements) {
+  std::vector<std::pair<std::string, QString>> symbol_replacements{
+    {"Fanin Cone", "\u25B7"},
+    {"Fanout Cone", "\u25C1"}
+  };
+
+  const std::string& name = action.name;
+
+  QPushButton* button = nullptr;
+  for (const auto& [label, icon] : button_replacements) {
+    if (name == label) {
+      button = new QPushButton(QIcon(icon), "", this);
+      button->setToolTip(QString::fromStdString(name)); // set tool since this is an icon
+      break;
+    }
+  }
+  if (button == nullptr) {
+    for (const auto& [label, new_text] : symbol_replacements) {
       if (name == label) {
-        button = new QPushButton(QIcon(icon), "", this);
-        button->setToolTip(QString::fromStdString(name)); // set tool since
+        button = new QPushButton(new_text, this);
+        button->setToolTip(QString::fromStdString(name)); // set tool since this is a symbol
         break;
       }
     }
-
-    if (button == nullptr) {
-      button = new QPushButton(QString::fromStdString(name), this);
-    }
-    connect(button, &QPushButton::released, [this, button]() {
-      handleAction(button);
-    });
-    action_layout_->addWidget(button);
-    actions_[button] = action;
   }
+
+  if (button == nullptr) {
+    button = new QPushButton(QString::fromStdString(name), this);
+  }
+  connect(button, &QPushButton::released, [this, button]() {
+    handleAction(button);
+  });
+  action_layout_->addWidget(button);
+  actions_[button] = action.callback;
 }
 
 void Inspector::clicked(const QModelIndex& index)
@@ -804,8 +903,11 @@ void Inspector::focusIndex(const QModelIndex& focus_index)
   QVariant item_data = item->data(EditorItemDelegate::selected_);
 
   if (item_data.isValid()) {
-    // emit the selected item as something to focus on
-    emit focus(item_data.value<Selected>());
+    Selected sel = item_data.value<Selected>();
+    if (!sel.isSlowHighlight()) {
+      // emit the selected item as something to focus on
+      emit focus(sel);
+    }
   }
 }
 
@@ -891,8 +993,17 @@ void Inspector::updateSelectedFields(const QModelIndex& index)
       view_->setExpanded(row_index, (*itr).second);
     }
   }
+}
 
-  view_->resizeColumnToContents(0);
+bool Inspector::isHighlighted(const Selected& selected)
+{
+  for (const auto& highlight_set : highlighted_) {
+    if (highlight_set.find(selected) != highlight_set.end()) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 ////////////

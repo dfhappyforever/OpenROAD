@@ -3,6 +3,8 @@ record_tests {
   buffer_ports3
   buffer_ports4
   buffer_ports5
+  buffer_ports6
+  buffer_ports7
   fanin_fanout1
   make_parasitics1
   make_parasitics2
@@ -59,6 +61,8 @@ record_tests {
   repair_slew9
   repair_slew10
   repair_slew11
+  repair_slew12
+  repair_slew13
   report_floating_nets1
   repair_tie1
   repair_tie2

@@ -15,6 +15,8 @@ record_tests {
   report_json1
   power1
 
+  read_liberty1
+
   read_verilog1
   read_verilog2
   read_verilog3
@@ -34,4 +36,6 @@ record_tests {
   write_verilog6
   write_verilog7
   write_verilog8
+
+  write_sdc1
 }

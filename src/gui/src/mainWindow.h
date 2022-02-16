@@ -129,7 +129,7 @@ class MainWindow : public QMainWindow, public ord::OpenRoad::Observer
   void saveSettings();
 
   // Set the location to display in the status bar
-  void setLocation(qreal x, qreal y);
+  void setLocation(int x, int y);
 
   // Update selected name in status bar
   void updateSelectedStatus(const Selected& selection);
@@ -150,7 +150,7 @@ class MainWindow : public QMainWindow, public ord::OpenRoad::Observer
   void setSelected(const Selected& selection, bool show_connectivity = false);
 
   // Add the selections to highlight set
-  void addHighlighted(const SelectionSet& selection, int highlight_group = 0);
+  void addHighlighted(const SelectionSet& selection, int highlight_group = -1);
 
   // Add Ruler to Layout View
   std::string addRuler(int x0, int y0, int x1, int y1, const std::string& label = "", const std::string& name = "");
@@ -160,7 +160,7 @@ class MainWindow : public QMainWindow, public ord::OpenRoad::Observer
 
   // Add the selections(List) to highlight set
   void updateHighlightedSet(const QList<const Selected*>& items_to_highlight,
-                            int highlight_group = 0);
+                            int highlight_group = -1);
 
   // Higlight set will be cleared with this explicit call
   void clearHighlighted(int highlight_group = -1 /* -1 : clear all Groups */);
@@ -198,6 +198,15 @@ class MainWindow : public QMainWindow, public ord::OpenRoad::Observer
                                      bool echo);
   void removeToolbarButton(const std::string& name);
 
+  // add/remove menu actions
+  const std::string addMenuItem(const std::string& name,
+                                const QString& path,
+                                const QString& text,
+                                const QString& script,
+                                const QString& shortcut,
+                                bool echo);
+  void removeMenuItem(const std::string& name);
+
   // request for user input
   const std::string requestUserInput(const QString& title, const QString& question);
 
@@ -208,10 +217,24 @@ class MainWindow : public QMainWindow, public ord::OpenRoad::Observer
                                     bool input,
                                     int highlight_group = 0);
 
+  void timingCone(Gui::odbTerm term, bool fanin, bool fanout);
+  void timingPathsThrough(const std::set<Gui::odbTerm>& terms);
+
+  void registerHeatMap(HeatMapDataSource* heatmap);
+  void unregisterHeatMap(HeatMapDataSource* heatmap);
+
+ private slots:
+  void setUseDBU(bool use_dbu);
+  void setClearLocation();
+  void showApplicationFont();
+
  protected:
   // used to check if user intends to close Openroad or just the GUI.
   void closeEvent(QCloseEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
+
+ private slots:
+  void setBlock(odb::dbBlock* block);
 
  private:
   void createMenus();
@@ -219,7 +242,15 @@ class MainWindow : public QMainWindow, public ord::OpenRoad::Observer
   void createToolbars();
   void createStatusBar();
 
-  odb::dbBlock* getBlock();
+  QMenu* findMenu(QStringList& path, QMenu* parent = nullptr);
+  void removeMenu(QMenu* menu);
+
+  int requestHighlightGroup();
+
+  odb::dbBlock* getBlock() const;
+
+  std::string convertDBUToString(int value, bool add_units) const;
+  int convertStringToDBU(const std::string& value, bool* ok) const;
 
   odb::dbDatabase* db_;
   utl::Logger* logger_;
@@ -258,13 +289,19 @@ class MainWindow : public QMainWindow, public ord::OpenRoad::Observer
   QAction* zoom_out_;
   QAction* help_;
   QAction* build_ruler_;
-
-  QAction* congestion_setup_;
+  QAction* show_dbu_;
+  QAction* font_;
 
   QLabel* location_;
 
   // created button actions
   std::map<const std::string, std::unique_ptr<QAction>> buttons_;
+
+  // created menu actions
+  std::map<const std::string, std::unique_ptr<QAction>> menu_actions_;
+
+  // heat map actions
+  std::map<HeatMapDataSource*, QAction*> heatmap_actions_;
 };
 
 }  // namespace gui

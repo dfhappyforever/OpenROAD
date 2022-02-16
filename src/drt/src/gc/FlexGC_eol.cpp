@@ -436,6 +436,10 @@ void FlexGCWorker::Impl::checkMetalEndOfLine_eol_hasEol_getQueryBox(
       auto con = (frLef58SpacingEndOfLineConstraint*) constraint;
       eolWithin = con->getWithinConstraint()->getEolWithin();
       eolSpace = con->getEolSpace();
+      if (con->getWithinConstraint()->hasEndToEndConstraint()) {
+        auto endToEndCon = con->getWithinConstraint()->getEndToEndConstraint();
+        eolSpace = std::max(eolSpace, endToEndCon->getEndToEndSpace());
+      }
     } break;
     default:
       logger_->error(DRT, 226, "Unsupported endofline spacing rule.");
@@ -535,6 +539,34 @@ void FlexGCWorker::Impl::checkMetalEndOfLine_eol_hasEol_helper(
   addMarker(std::move(marker));
 }
 
+bool FlexGCWorker::Impl::checkMetalEndOfLine_eol_hasEol_endToEndHelper(
+    gcSegment* edge1,
+    gcSegment* edge2,
+    frConstraint* constraint)
+{
+  if (constraint->typeId()
+      != frConstraintTypeEnum::frcLef58SpacingEndOfLineConstraint)
+    return true;
+  auto con = (frLef58SpacingEndOfLineConstraint*) constraint;
+  if (!con->getWithinConstraint()->hasEndToEndConstraint())
+    return true;
+  auto endToEndCon = con->getWithinConstraint()->getEndToEndConstraint();
+  frCoord eolSpace = con->getEolSpace();
+  frCoord endSpace = endToEndCon->getEndToEndSpace();
+  gtl::rectangle_data<frCoord> rect1;
+  gtl::set_points(rect1, edge1->low(), edge1->high());
+  gtl::rectangle_data<frCoord> rect2;
+  gtl::set_points(rect2, edge2->low(), edge2->high());
+  frCoord dist = gtl::euclidean_distance(rect1, rect2);
+  if (checkMetalEndOfLine_eol_isEolEdge(edge2, constraint)) {
+    if (dist < endSpace)
+      return true;
+  } else {
+    if (dist < eolSpace)
+      return true;
+  }
+  return false;
+}
 void FlexGCWorker::Impl::checkMetalEndOfLine_eol_hasEol(
     gcSegment* edge,
     frConstraint* constraint,
@@ -552,6 +584,11 @@ void FlexGCWorker::Impl::checkMetalEndOfLine_eol_hasEol(
   workerRegionQuery.queryPolygonEdge(queryBox, edge->getLayerNum(), results);
   gtl::polygon_90_set_data<frCoord> tmpPoly;
   for (auto& [boostSeg, ptr] : results) {
+    if (ptr->getPin() == edge->getPin())
+      continue;
+    if (edge->isFixed() && ptr->isFixed())
+      continue;
+
     // skip if non oppo-dir edge
     if ((int) edge->getDir() + (int) ptr->getDir() != OPPOSITEDIR) {
       continue;
@@ -580,6 +617,9 @@ void FlexGCWorker::Impl::checkMetalEndOfLine_eol_hasEol(
     if (!hasRoute) {
       continue;
     }
+    // check endtoend
+    if (!checkMetalEndOfLine_eol_hasEol_endToEndHelper(edge, ptr, constraint))
+      continue;
     checkMetalEndOfLine_eol_hasEol_helper(edge, ptr, constraint);
   }
 }
@@ -1043,7 +1083,6 @@ void FlexGCWorker::Impl::checkMetalEndOfLine_main(gcPin* pin)
 {
   auto poly = pin->getPolygon();
   auto layerNum = poly->getLayerNum();
-  // auto net = poly->getNet();
   auto layer = getTech()->getLayer(layerNum);
   auto& cons = layer->getEolSpacing();
   auto lef58Cons = layer->getLef58SpacingEndOfLineConstraints();
@@ -1054,8 +1093,30 @@ void FlexGCWorker::Impl::checkMetalEndOfLine_main(gcPin* pin)
     return;
   }
 
+  bool isVertical = layer->isVertical();
+
   for (auto& edges : pin->getPolygonEdges()) {
     for (auto& edge : edges) {
+
+      if (ignoreLongSideEOL_) {
+        switch (edge->getDir()) {
+        case frDirEnum::N:
+        case frDirEnum::S:
+          if (isVertical) {
+            continue;
+          }
+          break;
+        case frDirEnum::E:
+        case frDirEnum::W:
+          if (!isVertical) {
+            continue;
+          }
+          break;
+        default:
+          break;
+        }
+      }
+
       for (auto con : cons) {
         checkMetalEndOfLine_eol(edge.get(), con);
       }

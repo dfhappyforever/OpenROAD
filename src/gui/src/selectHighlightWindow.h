@@ -42,6 +42,7 @@
 #include <QModelIndex>
 #include <QPoint>
 #include <QShortcut>
+#include <QSortFilterProxyModel>
 #include <QStringList>
 #include <QStyledItemDelegate>
 #include <QToolBar>
@@ -106,31 +107,6 @@ class HighlightModel : public QAbstractTableModel
   std::vector<std::pair<int, const Selected*>> table_data_;
 };
 
-class HighlightGroupDelegate : public QStyledItemDelegate
-{
-  Q_OBJECT
- public:
-  HighlightGroupDelegate(QObject* parent = 0);
-
-  QWidget* createEditor(QWidget* parent,
-                        const QStyleOptionViewItem& option,
-                        const QModelIndex& index) const;
-  void setEditorData(QWidget* editor, const QModelIndex& index) const;
-  void setModelData(QWidget* editor,
-                    QAbstractItemModel* model,
-                    const QModelIndex& index) const;
-  void updateEditorGeometry(QWidget* editor,
-                            const QStyleOptionViewItem& option,
-                            const QModelIndex& index) const;
-  void paint(QPainter* painter,
-             const QStyleOptionViewItem& option,
-             const QModelIndex& index) const;
-
- private:
-  std::vector<std::string> items_;
-  HighlightModel* table_model_;
-};
-
 class SelectHighlightWindow : public QDockWidget
 {
   Q_OBJECT
@@ -149,8 +125,7 @@ class SelectHighlightWindow : public QDockWidget
   void clearSelectedItems(const QList<const Selected*>& items);
   void clearHighlightedItems(const QList<const Selected*>& items);
   void zoomInToItems(const QList<const Selected*>& items);
-  void highlightSelectedItemsSig(const QList<const Selected*>& items,
-                                 int highlight_group);
+  void highlightSelectedItemsSig(const QList<const Selected*>& items);
 
  public slots:
   void updateSelectionModel();
@@ -158,6 +133,8 @@ class SelectHighlightWindow : public QDockWidget
   void updateModels();
   void showSelectCustomMenu(QPoint pos);
   void showHighlightCustomMenu(QPoint pos);
+
+  void changeHighlight();
 
   void deselectItems();
   void highlightSelectedItems();
@@ -168,7 +145,10 @@ class SelectHighlightWindow : public QDockWidget
  private:
   Ui::SelectHighlightWidget ui_;
   SelectionModel selection_model_;
+  QSortFilterProxyModel* sel_filter_proxy_;
+
   HighlightModel highlight_model_;
+  QSortFilterProxyModel* hlt_filter_proxy_;
 
   QMenu* select_context_menu_;
   QMenu* highlight_context_menu_;

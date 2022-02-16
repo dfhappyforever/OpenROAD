@@ -285,15 +285,13 @@ public:
   Pin *next();
 
 private:
-  const dbNetwork *network_;
   dbSet<dbITerm>::iterator iitr_;
   dbSet<dbITerm>::iterator iitr_end_;
   Pin *next_;
 };
 
 DbNetPinIterator::DbNetPinIterator(const Net *net,
-				   const dbNetwork *network) :
-  network_(network)
+				   const dbNetwork* /* network */)
 {
   dbNet *dnet = reinterpret_cast<dbNet*>(const_cast<Net*>(net));
   iitr_ = dnet->getITerms().begin();
@@ -365,14 +363,11 @@ DbNetTermIterator::next()
 
 ////////////////////////////////////////////////////////////////
 
-Network *
-makedbNetwork()
-{
-  return new dbNetwork;
-}
-
 dbNetwork::dbNetwork() :
+  ConcreteNetwork(),
   db_(nullptr),
+  logger_(nullptr),
+  block_(nullptr),
   top_instance_(reinterpret_cast<Instance*>(1)),
   top_cell_(nullptr)
 {
@@ -383,23 +378,18 @@ dbNetwork::~dbNetwork()
 }
 
 void
-dbNetwork::setDb(dbDatabase *db)
+dbNetwork::init(dbDatabase *db,
+                Logger *logger)
 {
   db_ = db;
+  logger_ = logger;
 }
 
 void
 dbNetwork::setBlock(dbBlock *block)
 {
-  db_ = block->getDataBase();
   block_ = block;
   readDbNetlistAfter();
-}
-
-void
-dbNetwork::setLogger(Logger *logger)
-{
-  logger_ = logger;
 }
 
 void
@@ -905,7 +895,8 @@ dbNetwork::makeCell(Library *library,
 	cport->setLibertyPort(lib_port);
 	lib_port->setExtPort(mterm);
       }
-      else if (!dir->isPowerGround())
+      else if (!dir->isPowerGround()
+               && !lib_cell->findPgPort(port_name))
 	logger_->warn(ORD, 1001, "LEF macro {} pin {} missing from liberty cell.",
 		      cell_name,
 		      port_name);
@@ -1018,7 +1009,8 @@ dbNetwork::readLibertyAfter(LibertyLibrary *lib)
 		cport->setLibertyPort(lport);
 		lport->setExtPort(cport->extPort());
 	      }
-	      else if (!cport->direction()->isPowerGround())
+	      else if (!cport->direction()->isPowerGround()
+                       && !lcell->findPgPort(port_name))
 		logger_->warn(ORD, 1002,
                               "Liberty cell {} pin {} missing from LEF macro.",
 			      lcell->name(),
@@ -1030,6 +1022,10 @@ dbNetwork::readLibertyAfter(LibertyLibrary *lib)
       }
       delete cell_iter;
     }
+  }
+
+  for (auto* observer : observers_) {
+    observer->postReadLiberty();
   }
 }
 
@@ -1101,7 +1097,8 @@ dbNetwork::connect(Instance *inst,
   else {
     dbInst *dinst = staToDb(inst);
     dbMTerm *dterm = staToDb(port);
-    dbITerm *iterm = dbITerm::connect(dinst, dnet, dterm);
+    dbITerm *iterm = dinst->getITerm(dterm);
+    iterm->connect(dnet);
     pin = dbToSta(iterm);
   }
   return pin;
@@ -1146,7 +1143,8 @@ dbNetwork::connect(Instance *inst,
     dbInst *dinst = staToDb(inst);
     dbMaster *master = dinst->getMaster();
     dbMTerm *dterm = master->findMTerm(port_name);
-    dbITerm *iterm = dbITerm::connect(dinst, dnet, dterm);
+    dbITerm *iterm = dinst->getITerm(dterm);
+    iterm->connect(dnet);
     pin = dbToSta(iterm);
   }
   return pin;
@@ -1159,7 +1157,7 @@ dbNetwork::disconnectPin(Pin *pin)
   dbBTerm *bterm;
   staToDb(pin, iterm, bterm);
   if (iterm)
-    dbITerm::disconnect(iterm);
+    iterm->disconnect();
   else if (bterm)
     bterm->disconnect();
 }
@@ -1417,6 +1415,32 @@ LibertyCell *
 dbNetwork::libertyCell(dbInst *inst)
 {
   return libertyCell(dbToSta(inst));
+}
+
+////////////////////////////////////////////////////////////////
+// Observer
+
+void
+dbNetwork::addObserver(dbNetworkObserver* observer)
+{
+  observer->owner_ = this;
+  observers_.insert(observer);
+}
+
+void
+dbNetwork::removeObserver(dbNetworkObserver* observer)
+{
+  observer->owner_ = nullptr;
+  observers_.erase(observer);
+}
+
+////////
+
+dbNetworkObserver::~dbNetworkObserver()
+{
+  if (owner_ != nullptr) {
+    owner_->removeObserver(this);
+  }
 }
 
 } // namespace

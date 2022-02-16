@@ -31,9 +31,11 @@
 #include <fstream>
 #include <iostream>
 
+#include "RoutingCallBack.h"
 #include "db/tech/frTechObject.h"
 #include "dr/FlexDR.h"
 #include "dr/FlexDR_graphics.h"
+#include "dst/Distributed.h"
 #include "frDesign.h"
 #include "gc/FlexGC.h"
 #include "global.h"
@@ -43,10 +45,10 @@
 #include "ord/OpenRoad.hh"
 #include "pa/FlexPA.h"
 #include "rp/FlexRP.h"
+#include "serialization.h"
 #include "sta/StaMain.hh"
 #include "stt/SteinerTreeBuilder.h"
 #include "ta/FlexTA.h"
-
 using namespace std;
 using namespace fr;
 using namespace triton_route;
@@ -63,7 +65,9 @@ extern int Drt_Init(Tcl_Interp* interp);
 TritonRoute::TritonRoute()
     : debug_(std::make_unique<frDebugSettings>()),
       num_drvs_(-1),
-      gui_(gui::Gui::get())
+      gui_(gui::Gui::get()),
+      distributed_(false),
+      pin_access_valid_(false)
 {
 }
 
@@ -76,6 +80,11 @@ void TritonRoute::setDebugDR(bool on)
   debug_->debugDR = on;
 }
 
+void TritonRoute::setDebugDumpDR(bool on)
+{
+  debug_->debugDumpDR = on;
+}
+
 void TritonRoute::setDebugMaze(bool on)
 {
   debug_->debugMaze = on;
@@ -84,6 +93,25 @@ void TritonRoute::setDebugMaze(bool on)
 void TritonRoute::setDebugPA(bool on)
 {
   debug_->debugPA = on;
+}
+
+void TritonRoute::setDistributed(bool on)
+{
+  distributed_ = on;
+}
+
+void TritonRoute::setWorkerIpPort(const char* ip, unsigned short port)
+{
+  dist_ip_ = ip;
+  dist_port_ = port;
+}
+
+void TritonRoute::setSharedVolume(const std::string& vol)
+{
+  shared_volume_ = vol;
+  if (!shared_volume_.empty() && shared_volume_.back() != '/') {
+    shared_volume_ += '/';
+  }
 }
 
 void TritonRoute::setDebugNetName(const char* name)
@@ -96,10 +124,10 @@ void TritonRoute::setDebugPinName(const char* name)
   debug_->pinName = name;
 }
 
-void TritonRoute::setDebugGCell(int x, int y)
+void TritonRoute::setDebugWorker(int x, int y)
 {
-  debug_->gcellX = x;
-  debug_->gcellY = y;
+  debug_->x = x;
+  debug_->y = y;
 }
 
 void TritonRoute::setDebugIter(int iter)
@@ -112,9 +140,14 @@ void TritonRoute::setDebugPaMarkers(bool on)
   debug_->paMarkers = on;
 }
 
-void TritonRoute::setDebugPaCombining(bool on)
+void TritonRoute::setDebugPaEdge(bool on)
 {
-  debug_->paCombining = on;
+  debug_->paEdge = on;
+}
+
+void TritonRoute::setDebugPaCommit(bool on)
+{
+  debug_->paCommit = on;
 }
 
 int TritonRoute::getNumDRVs() const
@@ -125,30 +158,52 @@ int TritonRoute::getNumDRVs() const
   return num_drvs_;
 }
 
+static bool readGlobals(const std::string& name)
+{
+  std::ifstream file(name);
+  if (!file.good())
+    return false;
+  InputArchive ar(file);
+  register_types(ar);
+  serialize_globals(ar);
+  file.close();
+  return true;
+}
+
+std::string TritonRoute::runDRWorker(const char* file_name)
+{
+  auto worker = FlexDRWorker::load(file_name, logger_, nullptr);
+  worker->setSharedVolume(shared_volume_);
+  return worker->reloadedMain();
+}
+
+void TritonRoute::updateGlobals(const char* file_name)
+{
+  readGlobals(file_name);
+}
+
 void TritonRoute::init(Tcl_Interp* tcl_interp,
                        odb::dbDatabase* db,
                        Logger* logger,
+                       dst::Distributed* dist,
                        stt::SteinerTreeBuilder* stt_builder)
 {
   db_ = db;
   logger_ = logger;
+  dist_ = dist;
   stt_builder_ = stt_builder;
   design_ = std::make_unique<frDesign>(logger_);
+  dist->addCallBack(new fr::RoutingCallBack(this, dist, logger));
   // Define swig TCL commands.
   Drt_Init(tcl_interp);
   sta::evalTclInit(tcl_interp, sta::drt_tcl_inits);
   FlexDRGraphics::init();
 }
 
-void TritonRoute::init()
+void TritonRoute::init(bool pin_access_only)
 {
   if (DBPROCESSNODE == "GF14_13M_3Mx_2Cx_4Kx_2Hx_2Gx_LB") {
-    VIAINPIN_BOTTOMLAYERNUM = 2;
-    VIAINPIN_TOPLAYERNUM = 2;
     USENONPREFTRACKS = false;
-    BOTTOM_ROUTING_LAYER = 4;
-    TOP_ROUTING_LAYER = 18;
-    ENABLE_VIA_GEN = false;
   }
 
   io::Parser parser(getDesign(), logger_);
@@ -179,20 +234,51 @@ void TritonRoute::init()
     }
   }
 
+  if (!VIAINPIN_BOTTOMLAYER_NAME.empty()) {
+    frLayer* layer = tech->getLayer(VIAINPIN_BOTTOMLAYER_NAME);
+    if (layer) {
+      VIAINPIN_BOTTOMLAYERNUM = layer->getLayerNum();
+    } else {
+      logger_->warn(utl::DRT,
+                    606,
+                    "via in pin bottom layer {} not found.",
+                    VIAINPIN_BOTTOMLAYERNUM);
+    }
+  }
+
+  if (!VIAINPIN_TOPLAYER_NAME.empty()) {
+    frLayer* layer = tech->getLayer(VIAINPIN_TOPLAYER_NAME);
+    if (layer) {
+      VIAINPIN_TOPLAYERNUM = layer->getLayerNum();
+    } else {
+      logger_->warn(utl::DRT,
+                    607,
+                    "via in pin top layer {} not found.",
+                    VIAINPIN_TOPLAYERNUM);
+    }
+  }
+
   if (GUIDE_FILE != string("")) {
     parser.readGuide();
+  } else if (pin_access_only) {
+    ENABLE_VIA_GEN = true;
   } else {
     ENABLE_VIA_GEN = false;
   }
-  parser.postProcess();
-  FlexPA pa(getDesign(), logger_);
-  pa.setDebug(debug_.get(), db_);
-  pa.main();
+  if (!pin_access_valid_) {
+    parser.postProcess();
+    FlexPA pa(getDesign(), logger_);
+    pa.setDebug(debug_.get(), db_);
+    pa.main();
+  }
   if (GUIDE_FILE != string("")) {
-    parser.postProcessGuide();
+    parser.postProcessGuide(db_);
   }
   // GR-related
-  parser.initRPin();
+  if (!pin_access_valid_) {
+    parser.initRPin();
+  }
+  pin_access_valid_ = true;
 }
 
 void TritonRoute::prep()
@@ -218,6 +304,8 @@ void TritonRoute::dr()
   num_drvs_ = -1;
   FlexDR dr(getDesign(), logger_, db_);
   dr.setDebug(debug_.get());
+  if (distributed_)
+    dr.setDistributed(dist_, dist_ip_, dist_port_, shared_volume_);
   dr.main();
 }
 
@@ -243,7 +331,7 @@ int TritonRoute::main()
     ENABLE_VIA_GEN = true;
     parser.readGuide();
     parser.initDefaultVias();
-    parser.postProcessGuide();
+    parser.postProcessGuide(db_);
   }
   prep();
   ta();
@@ -253,6 +341,14 @@ int TritonRoute::main()
   num_drvs_ = design_->getTopBlock()->getNumMarkers();
 
   return 0;
+}
+
+void TritonRoute::pinAccess()
+{
+  MAX_THREADS = ord::OpenRoad::openRoad()->getThreadCount();
+  init(true);
+  io::Writer writer(getDesign(), logger_);
+  writer.updateDb(db_, true);
 }
 
 void TritonRoute::readParams(const string& fileName)
@@ -307,11 +403,11 @@ void TritonRoute::readParams(const string& fileName)
         else if (field == "dbProcessNode") {
           DBPROCESSNODE = value;
           ++readParamCnt;
-        } else if (field == "drouteViaInPinBottomLayerNum") {
-          VIAINPIN_BOTTOMLAYERNUM = atoi(value.c_str());
+        } else if (field == "viaInPinBottomLayer") {
+          VIAINPIN_BOTTOMLAYER_NAME = value;
           ++readParamCnt;
-        } else if (field == "drouteViaInPinTopLayerNum") {
-          VIAINPIN_TOPLAYERNUM = atoi(value.c_str());
+        } else if (field == "viaInPinTopLayer") {
+          VIAINPIN_TOPLAYER_NAME = value;
           ++readParamCnt;
         } else if (field == "drouteEndIterNum") {
           END_ITERATION = atoi(value.c_str());
@@ -331,7 +427,8 @@ void TritonRoute::readParams(const string& fileName)
         } else if (field == "initRouteShapeCost") {
           ROUTESHAPECOST = atoi(value.c_str());
           ++readParamCnt;
-        }
+        } else if (field == "clean_patches")
+          CLEAN_PATCHES = true;
       }
     }
     fin.close();
@@ -352,13 +449,14 @@ void TritonRoute::setParams(const ParamStruct& params)
   VERBOSE = params.verbose;
   ENABLE_VIA_GEN = params.enableViaGen;
   DBPROCESSNODE = params.dbProcessNode;
-  if (params.drouteViaInPinBottomLayerNum > 0) {
-    VIAINPIN_BOTTOMLAYERNUM = params.drouteViaInPinBottomLayerNum;
+  CLEAN_PATCHES = params.cleanPatches;
+  if (!params.viaInPinBottomLayer.empty()) {
+    VIAINPIN_BOTTOMLAYER_NAME = params.viaInPinBottomLayer;
   }
-  if (params.drouteViaInPinTopLayerNum > 0) {
-    VIAINPIN_TOPLAYERNUM = params.drouteViaInPinTopLayerNum;
+  if (!params.viaInPinTopLayer.empty()) {
+    VIAINPIN_TOPLAYER_NAME = params.viaInPinTopLayer;
   }
-  if (params.drouteEndIter > 0) {
+  if (params.drouteEndIter >= 0) {
     END_ITERATION = params.drouteEndIter;
   }
   OR_SEED = params.orSeed;

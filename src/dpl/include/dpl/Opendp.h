@@ -79,7 +79,7 @@ using odb::dbSite;
 using odb::Point;
 using odb::Rect;
 
-class Pixel;
+struct Pixel;
 struct Group;
 class Graphics;
 
@@ -179,6 +179,7 @@ public:
   void clear();
   void init(dbDatabase *db,
             Logger *logger);
+  void initBlock();
   // legalize/report
   // max_displacment is in sites. use zero for defaults.
   void detailedPlacement(int max_displacement_x,
@@ -202,7 +203,7 @@ public:
   int padRight(dbInst *inst) const;
   int padLeft(dbInst *inst) const;
   // Return error count.
-  int checkPlacement(bool verbose);
+  void checkPlacement(bool verbose);
   void fillerPlacement(dbMasterSeq *filler_masters,
                        const char* prefix);
   int64_t hpwl() const;
@@ -274,7 +275,7 @@ private:
                    int y,
                    int x_end,
                    int y_end) const;
-  bool shiftMove(Cell *cell);
+  void shiftMove(Cell *cell);
   bool mapMove(Cell *cell);
   bool mapMove(Cell *cell,
                Point grid_pt);
@@ -394,7 +395,6 @@ private:
                            int col);
 
   // Optimizing mirroring
-  Rect getBox(dbNet *net) const;
   void findNetBoxes(NetBoxes &net_boxes);
   void findMirrorCandidates(NetBoxes &net_boxes,
                             vector<dbInst*> &mirror_candidates);
@@ -429,6 +429,7 @@ private:
   int have_multi_row_cells_;
   int max_displacement_x_;           // sites
   int max_displacement_y_;           // sites
+  vector<dbInst*> placement_failures_;
 
   // 2D pixel grid
   Grid *grid_;

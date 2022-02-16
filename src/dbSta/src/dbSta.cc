@@ -66,6 +66,7 @@
 #include "db_sta/MakeDbSta.hh"
 
 #include "dbSdcNetwork.hh"
+#include "heatMap.h"
 
 namespace ord {
 
@@ -211,9 +212,9 @@ makeBlockSta(ord::OpenRoad *openroad,
   dbSta *sta = openroad->getSta();
   dbSta *sta2 = new dbSta;
   sta2->makeComponents();
+  sta2->initVars(sta->tclInterp(), openroad->getDb(), gui::Gui::get(),
+                 openroad->getLogger());
   sta2->getDbNetwork()->setBlock(block);
-  sta2->setTclInterp(sta->tclInterp());
-  sta2->getDbReport()->setLogger(openroad->getLogger());
   sta2->copyUnits(sta->units());
   return sta2;
 }
@@ -228,7 +229,8 @@ dbSta::dbSta() :
   Sta(),
   db_(nullptr),
   db_cbk_(nullptr),
-  path_renderer_(nullptr)
+  path_renderer_(nullptr),
+  power_density_heatmap_(nullptr)
 {
 }
 
@@ -244,26 +246,31 @@ dbSta::init(Tcl_Interp *tcl_interp,
             Logger *logger)
 {
   initSta();
+  initVars(tcl_interp, db, gui, logger);
   Sta::setSta(this);
+  // Define swig TCL commands.
+  Dbsta_Init(tcl_interp);
+  // Eval encoded sta TCL sources.
+  evalTclInit(tcl_interp, dbSta_tcl_inits);
+
+  power_density_heatmap_ = std::make_unique<PowerDensityDataSource>(this, logger);
+  power_density_heatmap_->registerHeatMap();
+}
+
+void
+dbSta::initVars(Tcl_Interp *tcl_interp,
+                dbDatabase *db,
+                gui::Gui *gui,
+                Logger *logger)
+{
   db_ = db;
   gui_ = gui;
   logger_ = logger;
   makeComponents();
   setTclInterp(tcl_interp);
   db_report_->setLogger(logger);
+  db_network_->init(db, logger);
   db_cbk_ = new dbStaCbk(this, logger);
-  // Define swig TCL commands.
-  Dbsta_Init(tcl_interp);
-  // Eval encoded sta TCL sources.
-  evalTclInit(tcl_interp, dbSta_tcl_inits);
-}
-
-// Wrapper to init network db.
-void
-dbSta::makeComponents()
-{
-  Sta::makeComponents();
-  db_network_->setDb(db_);
 }
 
 ////////////////////////////////////////////////////////////////

@@ -54,27 +54,21 @@ int io::Parser::distL1(const Rect& b, const Point& p)
 {
   int x = p.getX();
   int y = p.getY();
-  int dx = (x < b.xMin()) ? b.xMin() - x :
-           (x > b.xMax()) ? x - b.xMax() :
-           0;
-  int dy = (y < b.yMin()) ? b.yMin() - y :
-           (y > b.yMax()) ? y - b.yMax() :
-           0;
+  int dx = (x < b.xMin()) ? b.xMin() - x : (x > b.xMax()) ? x - b.xMax() : 0;
+  int dy = (y < b.yMin()) ? b.yMin() - y : (y > b.yMax()) ? y - b.yMax() : 0;
   return dx + dy;
 }
 
 // Returns (by reference) the closest point inside r to Point3D p
-void io::Parser::getClosestPoint(const frRect& r, const Point3D& p, Point3D& result)
+void io::Parser::getClosestPoint(const frRect& r,
+                                 const Point3D& p,
+                                 Point3D& result)
 {
   int px = p.getX();
   int py = p.getY();
   Rect b = r.getBBox();
-  int x = (px < b.xMin()) ? b.xMin() :
-          (px > b.xMax()) ? b.xMax() :
-                            px       ;
-  int y = (py < b.yMin()) ? b.yMin() :
-          (py > b.yMax()) ? b.yMax() :
-                            py       ;
+  int x = (px < b.xMin()) ? b.xMin() : (px > b.xMax()) ? b.xMax() : px;
+  int y = (py < b.yMin()) ? b.yMin() : (py > b.yMax()) ? b.yMax() : py;
   result.set(x, y, r.getLayerNum());
 }
 
@@ -88,16 +82,23 @@ void io::Parser::patchGuides(frNet* net,
   Rect pinBBox;
   vector<frRect> pinShapes;
   string name = "";
-  if (pin->typeId() == frcTerm) {
-    frTerm* term = static_cast<frTerm*>(pin);
-    term->getShapes(pinShapes);
-    pinBBox = term->getBBox();
-    name = term->getName();
-  } else {
-    frInstTerm* iTerm = static_cast<frInstTerm*>(pin);
-    iTerm->getShapes(pinShapes, true);
-    pinBBox = iTerm->getBBox();
-    name = iTerm->getName();
+  switch (pin->typeId()) {
+    case frcBTerm: {
+      frBTerm* term = static_cast<frBTerm*>(pin);
+      term->getShapes(pinShapes);
+      pinBBox = term->getBBox();
+      name = term->getName();
+      break;
+    }
+    case frcInstTerm: {
+      frInstTerm* iTerm = static_cast<frInstTerm*>(pin);
+      iTerm->getShapes(pinShapes, true);
+      pinBBox = iTerm->getBBox();
+      name = iTerm->getName();
+      break;
+    }
+    default:
+      logger->error(DRT, 1007, "PatchGuides invoked with non-term object.");
   }
   logger->info(DRT,
                1000,
@@ -215,7 +216,6 @@ void io::Parser::patchGuides(frNet* net,
 
   if (guidePt == bestPinLocCoords)
     return;
-  // add guide in upper our lower layer
   int z = guidePt.z();
   if (guidePt.x() != bestPinLocCoords.x()
       || guidePt.y() != bestPinLocCoords.y()) {
@@ -250,7 +250,7 @@ void io::Parser::genGuides_pinEnclosure(frNet* net, std::vector<frRect>& guides)
 {
   for (auto pin : net->getInstTerms())
     checkPinForGuideEnclosure(pin, net, guides);
-  for (auto pin : net->getTerms())
+  for (auto pin : net->getBTerms())
     checkPinForGuideEnclosure(pin, net, guides);
 }
 
@@ -259,10 +259,19 @@ void io::Parser::checkPinForGuideEnclosure(frBlockObject* pin,
                                            std::vector<frRect>& guides)
 {
   vector<frRect> pinShapes;
-  if (pin->typeId() == frcTerm) {
-    static_cast<frTerm*>(pin)->getShapes(pinShapes);
-  } else {
-    static_cast<frInstTerm*>(pin)->getShapes(pinShapes, true);
+  switch (pin->typeId()) {
+    case frcBTerm: {
+      static_cast<frTerm*>(pin)->getShapes(pinShapes);
+      break;
+    }
+    case frcInstTerm: {
+      static_cast<frInstTerm*>(pin)->getShapes(pinShapes, true);
+      break;
+    }
+    default:
+      logger->error(DRT,
+                    1008,
+                    "checkPinForGuideEnclosure invoked with non-term object.");
   }
   for (auto& pinRect : pinShapes) {
     int i = 0;
@@ -282,6 +291,12 @@ void io::Parser::genGuides_merge(
     vector<map<frCoord, boost::icl::interval_set<frCoord>>>& intvs)
 {
   for (auto& rect : rects) {
+    if (rect.getLayerNum() > TOP_ROUTING_LAYER)
+      logger->error(DRT,
+                    3000,
+                    "Guide in layer {} which is above max routing layer {}",
+                    rect.getLayerNum(),
+                    TOP_ROUTING_LAYER);
     Rect box;
     rect.getBBox(box);
     Point idx;
@@ -519,10 +534,11 @@ void io::Parser::genGuides_split(
   rects.shrink_to_fit();
 }
 
+template <typename T>
 void io::Parser::genGuides_gCell2TermMap(
     map<pair<Point, frLayerNum>, set<frBlockObject*, frBlockObjectComp>>&
         gCell2PinMap,
-    frTerm* term,
+    T* term,
     frBlockObject* origTerm)
 {
   for (auto& uPin : term->getPins()) {
@@ -616,7 +632,7 @@ void io::Parser::genGuides_gCell2PinMap(
     dbTransform xform;
     instTerm->getInst()->getUpdatedXform(xform);
     auto origTerm = instTerm->getTerm();
-    auto uTerm = make_unique<frTerm>(*origTerm, xform);
+    auto uTerm = make_unique<frMTerm>(*origTerm, xform);
     auto term = uTerm.get();
     if (DBPROCESSNODE == "GF14_13M_3Mx_2Cx_4Kx_2Hx_2Gx_LB") {
       if (!genGuides_gCell2APInstTermMap(gCell2PinMap, instTerm)) {
@@ -626,7 +642,7 @@ void io::Parser::genGuides_gCell2PinMap(
       genGuides_gCell2TermMap(gCell2PinMap, term, instTerm);
     }
   }
-  for (auto& term : net->getTerms()) {
+  for (auto& term : net->getBTerms()) {
     if (DBPROCESSNODE == "GF14_13M_3Mx_2Cx_4Kx_2Hx_2Gx_LB") {
       if (!genGuides_gCell2APTermMap(gCell2PinMap, term)) {
         genGuides_gCell2TermMap(gCell2PinMap, term, term);
@@ -652,7 +668,7 @@ bool io::Parser::genGuides_gCell2APInstTermMap(
   dbTransform shiftXform;
   dbTransform xform;
   instTerm->getInst()->getUpdatedXform(xform);
-  frTerm* trueTerm = instTerm->getTerm();
+  frMTerm* trueTerm = instTerm->getTerm();
   string name;
   frInst* inst = instTerm->getInst();
   inst->getTransform(shiftXform);
@@ -703,7 +719,7 @@ bool io::Parser::genGuides_gCell2APInstTermMap(
 bool io::Parser::genGuides_gCell2APTermMap(
     map<pair<Point, frLayerNum>, set<frBlockObject*, frBlockObjectComp>>&
         gCell2PinMap,
-    frTerm* term)
+    frBTerm* term)
 {
   bool isSuccess = false;
 
@@ -711,14 +727,91 @@ bool io::Parser::genGuides_gCell2APTermMap(
     return isSuccess;
   }
 
-  // ap
-  frTerm* trueTerm = term;
+  size_t succesPinCnt = 0;
+  for (auto& pin : term->getPins()) {
+    if (!pin->hasPinAccess()) {
+      continue;
+    }
 
+    auto& access_points = pin->getPinAccess(0)->getAccessPoints();
+    if (access_points.empty()) {
+      continue;
+    }
+    frAccessPoint* prefAp = access_points[0].get();
+
+    Point bp;
+    prefAp->getPoint(bp);
+    const auto bNum = prefAp->getLayerNum();
+
+    Point idx;
+    design->getTopBlock()->getGCellIdx(bp, idx);
+    gCell2PinMap[{idx, bNum}].insert(term);
+    succesPinCnt++;
+  }
+  return succesPinCnt == term->getPins().size();
+}
+
+void io::Parser::genGuides_initPin2GCellMap(
+    frNet* net,
+    std::map<frBlockObject*,
+             std::set<std::pair<Point, frLayerNum>>,
+             frBlockObjectComp>& pin2GCellMap)
+{
+  for (auto& instTerm : net->getInstTerms()) {
+    pin2GCellMap[instTerm];
+  }
+  for (auto& term : net->getBTerms()) {
+    pin2GCellMap[term];
+  }
+}
+
+void io::Parser::genGuides_addCoverGuide(frNet* net, vector<frRect>& rects)
+{
+  vector<frBlockObject*> terms;
+  for (auto& instTerm : net->getInstTerms()) {
+    terms.push_back(instTerm);
+  }
+  for (auto& term : net->getBTerms()) {
+    terms.push_back(term);
+  }
+
+  for (auto term : terms) {
+    // ap
+    dbTransform instXform;  // (0,0), R0
+    dbTransform shiftXform;
+    frInst* inst = nullptr;
+    switch (term->typeId()) {
+      case frcInstTerm: {
+        inst = static_cast<frInstTerm*>(term)->getInst();
+        inst->getTransform(shiftXform);
+        shiftXform.setOrient(dbOrientType(dbOrientType::R0));
+        inst->getUpdatedXform(instXform);
+        auto trueTerm = static_cast<frInstTerm*>(term)->getTerm();
+
+        genGuides_addCoverGuide_helper(term, trueTerm, inst, shiftXform, rects);
+        break;
+      }
+      case frcBTerm: {
+        auto trueTerm = static_cast<frBTerm*>(term);
+        genGuides_addCoverGuide_helper(term, trueTerm, inst, shiftXform, rects);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+}
+
+template <typename T>
+void io::Parser::genGuides_addCoverGuide_helper(frBlockObject* term, T* trueTerm, frInst* inst, dbTransform& shiftXform, vector<frRect>& rects)
+{
   int pinIdx = 0;
-  int pinAccessIdx = 0;
-  int succesPinCnt = 0;
+  int pinAccessIdx = (inst) ? inst->getPinAccessIdx() : -1;
   for (auto& pin : trueTerm->getPins()) {
     frAccessPoint* prefAp = nullptr;
+    if (inst) {
+      prefAp = (static_cast<frInstTerm*>(term)->getAccessPoints())[pinIdx];
+    }
     if (!pin->hasPinAccess()) {
       continue;
     }
@@ -737,116 +830,32 @@ bool io::Parser::genGuides_gCell2APTermMap(
       Point bp;
       prefAp->getPoint(bp);
       auto bNum = prefAp->getLayerNum();
+      shiftXform.apply(bp);
 
       Point idx;
+      Rect llBox, urBox;
       design->getTopBlock()->getGCellIdx(bp, idx);
-      gCell2PinMap[make_pair(idx, bNum)].insert(
-          static_cast<frBlockObject*>(term));
-      succesPinCnt++;
-      if (succesPinCnt == int(trueTerm->getPins().size())) {
-        isSuccess = true;
-      }
-    }
-    pinIdx++;
-  }
-  return isSuccess;
-}
+      design->getTopBlock()->getGCellBox(Point(idx.x() - 1, idx.y() - 1),
+                                         llBox);
+      design->getTopBlock()->getGCellBox(Point(idx.x() + 1, idx.y() + 1),
+                                         urBox);
+      Rect coverBox(llBox.xMin(), llBox.yMin(), urBox.xMax(), urBox.yMax());
+      frLayerNum beginLayerNum, endLayerNum;
+      beginLayerNum = bNum;
+      endLayerNum = min(bNum + 4, design->getTech()->getTopLayerNum());
 
-void io::Parser::genGuides_initPin2GCellMap(
-    frNet* net,
-    std::map<frBlockObject*,
-             std::set<std::pair<Point, frLayerNum>>,
-             frBlockObjectComp>& pin2GCellMap)
-{
-  for (auto& instTerm : net->getInstTerms()) {
-    pin2GCellMap[instTerm];
-  }
-  for (auto& term : net->getTerms()) {
-    pin2GCellMap[term];
-  }
-}
-
-void io::Parser::genGuides_addCoverGuide(frNet* net, vector<frRect>& rects)
-{
-  vector<frBlockObject*> terms;
-  for (auto& instTerm : net->getInstTerms()) {
-    terms.push_back(instTerm);
-  }
-  for (auto& term : net->getTerms()) {
-    terms.push_back(term);
-  }
-
-  for (auto term : terms) {
-    // ap
-    dbTransform instXform;  // (0,0), R0
-    dbTransform shiftXform;
-    frTerm* trueTerm = nullptr;
-    string name;
-    frInst* inst = nullptr;
-    if (term->typeId() == frcInstTerm) {
-      inst = static_cast<frInstTerm*>(term)->getInst();
-      inst->getTransform(shiftXform);
-      shiftXform.setOrient(dbOrientType(dbOrientType::R0));
-      inst->getUpdatedXform(instXform);
-      trueTerm = static_cast<frInstTerm*>(term)->getTerm();
-      name = inst->getName() + string("/") + trueTerm->getName();
-    } else if (term->typeId() == frcTerm) {
-      trueTerm = static_cast<frTerm*>(term);
-      name = string("PIN/") + trueTerm->getName();
-    }
-    int pinIdx = 0;
-    int pinAccessIdx = (inst) ? inst->getPinAccessIdx() : -1;
-    for (auto& pin : trueTerm->getPins()) {
-      frAccessPoint* prefAp = nullptr;
-      if (inst) {
-        prefAp = (static_cast<frInstTerm*>(term)->getAccessPoints())[pinIdx];
-      }
-      if (!pin->hasPinAccess()) {
-        continue;
-      }
-      if (pinAccessIdx == -1) {
-        continue;
-      }
-
-      if (!prefAp) {
-        for (auto& ap : pin->getPinAccess(pinAccessIdx)->getAccessPoints()) {
-          prefAp = ap.get();
-          break;
-        }
-      }
-
-      if (prefAp) {
-        Point bp;
-        prefAp->getPoint(bp);
-        auto bNum = prefAp->getLayerNum();
-        shiftXform.apply(bp);
-
-        Point idx;
-        Rect llBox, urBox;
-        design->getTopBlock()->getGCellIdx(bp, idx);
-        design->getTopBlock()->getGCellBox(Point(idx.x() - 1, idx.y() - 1),
-                                           llBox);
-        design->getTopBlock()->getGCellBox(Point(idx.x() + 1, idx.y() + 1),
-                                           urBox);
-        Rect coverBox(
-            llBox.xMin(), llBox.yMin(), urBox.xMax(), urBox.yMax());
-        frLayerNum beginLayerNum, endLayerNum;
-        beginLayerNum = bNum;
-        endLayerNum = min(bNum + 4, design->getTech()->getTopLayerNum());
-
-        for (auto lNum = beginLayerNum; lNum <= endLayerNum; lNum += 2) {
-          for (int xIdx = -1; xIdx <= 1; xIdx++) {
-            for (int yIdx = -1; yIdx <= 1; yIdx++) {
-              frRect coverGuideRect;
-              coverGuideRect.setBBox(coverBox);
-              coverGuideRect.setLayerNum(lNum);
-              rects.push_back(coverGuideRect);
-            }
+      for (auto lNum = beginLayerNum; lNum <= endLayerNum; lNum += 2) {
+        for (int xIdx = -1; xIdx <= 1; xIdx++) {
+          for (int yIdx = -1; yIdx <= 1; yIdx++) {
+            frRect coverGuideRect;
+            coverGuideRect.setBBox(coverBox);
+            coverGuideRect.setLayerNum(lNum);
+            rects.push_back(coverGuideRect);
           }
         }
       }
-      pinIdx++;
     }
+    pinIdx++;
   }
 }
 
@@ -855,9 +864,11 @@ void io::Parser::genGuides(frNet* net, vector<frRect>& rects)
   net->clearGuides();
 
   genGuides_pinEnclosure(net, rects);
-
-  vector<map<frCoord, boost::icl::interval_set<frCoord>>> intvs(
-      tech->getLayers().size());
+  int size = (int) tech->getLayers().size();
+  if (TOP_ROUTING_LAYER < std::numeric_limits<int>().max()
+      && TOP_ROUTING_LAYER >= 0)
+    size = min(size, TOP_ROUTING_LAYER + 1);
+  vector<map<frCoord, boost::icl::interval_set<frCoord>>> intvs(size);
   if (DBPROCESSNODE == "GF14_13M_3Mx_2Cx_4Kx_2Hx_2Gx_LB") {
     genGuides_addCoverGuide(net, rects);
   }
@@ -887,19 +898,26 @@ void io::Parser::genGuides(frNet* net, vector<frRect>& rects)
     }
     for (auto& [obj, locS] : pin2GCellMap) {
       if (locS.empty()) {
-        if (obj->typeId() == frcInstTerm) {
-          auto ptr = static_cast<frInstTerm*>(obj);
-          logger->warn(DRT,
-                       215,
-                       "Pin {}/{} not covered by guide.",
-                       ptr->getInst()->getName(),
-                       ptr->getTerm()->getName());
-        } else if (obj->typeId() == frcTerm) {
-          auto ptr = static_cast<frTerm*>(obj);
-          logger->warn(
-              DRT, 216, "Pin PIN/{} not covered by guide.", ptr->getName());
-        } else {
-          logger->warn(DRT, 217, "genGuides unknown type.");
+        switch(obj->typeId()) {
+          case frcInstTerm: {
+            auto ptr = static_cast<frInstTerm*>(obj);
+            logger->warn(DRT,
+                         215,
+                         "Pin {}/{} not covered by guide.",
+                         ptr->getInst()->getName(),
+                         ptr->getTerm()->getName());
+            break;
+          }
+          case frcBTerm: {
+            auto ptr = static_cast<frBTerm*>(obj);
+            logger->warn(
+                DRT, 216, "Pin PIN/{} not covered by guide.", ptr->getName());
+            break;
+          }
+          default: {
+            logger->warn(DRT, 217, "genGuides unknown type.");
+            break;
+          }
         }
       }
     }
@@ -981,8 +999,7 @@ void io::Parser::genGuides_final(
         pinIdx2GCellUpdated[pinIdx].push_back(make_pair(box.ll(), lNum));
       } else if (pin2GCellMap[obj].find(make_pair(box.ur(), lNum))
                  != pin2GCellMap[obj].end()) {
-        pinIdx2GCellUpdated[pinIdx].push_back(
-            make_pair(box.ur(), lNum));
+        pinIdx2GCellUpdated[pinIdx].push_back(make_pair(box.ur(), lNum));
       } else {
         logger->warn(DRT, 220, "genGuides_final error 1.");
       }
@@ -1001,8 +1018,7 @@ void io::Parser::genGuides_final(
         pinIdx2GCellUpdated[pinIdx].push_back(make_pair(box.ll(), lNum));
       } else if (pin2GCellMap[obj].find(make_pair(box.ur(), lNum))
                  != pin2GCellMap[obj].end()) {
-        pinIdx2GCellUpdated[pinIdx].push_back(
-            make_pair(box.ur(), lNum));
+        pinIdx2GCellUpdated[pinIdx].push_back(make_pair(box.ur(), lNum));
       } else {
         logger->warn(DRT, 221, "genGuides_final error 2.");
       }
@@ -1033,11 +1049,9 @@ void io::Parser::genGuides_final(
     auto& rect = rects[i];
     Rect box;
     rect.getBBox(box);
-    updatedNodeMap[make_pair(Point(box.xMin(), box.yMin()),
-                             rect.getLayerNum())]
+    updatedNodeMap[make_pair(Point(box.xMin(), box.yMin()), rect.getLayerNum())]
         .insert(i);
-    updatedNodeMap[make_pair(Point(box.xMax(), box.yMax()),
-                             rect.getLayerNum())]
+    updatedNodeMap[make_pair(Point(box.xMax(), box.yMax()), rect.getLayerNum())]
         .insert(i);
     // cout <<"add guide " <<i <<" to " <<Point(box.xMin(),  box.yMin()) <<"
     // " <<rect.getLayerNum() <<endl; cout <<"add guide " <<i <<" to "
@@ -1058,8 +1072,7 @@ void io::Parser::genGuides_final(
           if (box.ll() == pt) {
             rect.setBBox(Rect(box.xMax(), box.yMax(), box.xMax(), box.yMax()));
           } else {
-            rect.setBBox(
-                Rect(box.xMin(), box.yMin(), box.xMin(), box.yMin()));
+            rect.setBBox(Rect(box.xMin(), box.yMin(), box.xMin(), box.yMin()));
           }
         }
       } else {

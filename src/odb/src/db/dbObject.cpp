@@ -37,6 +37,7 @@
 #include "dbDatabase.h"
 #include "dbProperty.h"
 #include "dbTable.h"
+#include "utl/Logger.h"
 
 namespace odb {
 
@@ -87,7 +88,8 @@ void dbObject::getDbName(char name[max_name_length]) const
         break;
 
       case dbInstHdrObj:
-        // This object is not accessable from the API
+        getImpl()->getLogger()->critical(
+            utl::ODB, 294, "dbInstHdrObj not expected in getDbName");
         break;
 
       case dbInstObj:
@@ -186,7 +188,8 @@ void dbObject::getDbName(char name[max_name_length]) const
         break;
 
       case dbHierObj:
-        assert(0);  // hidden object....
+        getImpl()->getLogger()->critical(
+            utl::ODB, 295, "dbHierObj not expected in getDbName");
         break;
 
       case dbBPinObj:
@@ -322,6 +325,10 @@ void dbObject::getDbName(char name[max_name_length]) const
         *cptr++ = 'b';
         id = impl->getOID();
         break;
+      case dbAccessPointObj:
+        *cptr++ = 'h';
+        id = impl->getOID();
+        break;
       case dbTechLayerMinStepRuleObj:
       case dbTechLayerCornerSpacingRuleObj:
       case dbTechLayerSpacingTablePrlRuleObj:
@@ -337,7 +344,8 @@ void dbObject::getDbName(char name[max_name_length]) const
         break;
 
       case dbNameObj:
-        assert(0);
+        getImpl()->getLogger()->critical(
+            utl::ODB, 296, "dbNameObj not expected in getDbName");
         break;
     }
 
@@ -390,7 +398,7 @@ dbObject* dbObject::resolveDbName(dbDatabase* db_, const char* name)
 
       case 'D':  // Database
         oid = getOid(name);
-        ZASSERT(oid == (uint)((_dbDatabase*) db_)->_unique_id);
+        ZASSERT(oid == (uint) ((_dbDatabase*) db_)->_unique_id);
         obj = db_;
         break;
 
@@ -633,6 +641,7 @@ dbObject* dbObject::resolveDbName(dbDatabase* db_, const char* name)
         oid = getOid(name);
         obj = dbGroup::getGroup((dbBlock*) obj, oid);
         break;
+      case 'h':
       case 'J':
         // SKIP
         break;
@@ -697,6 +706,7 @@ static const char* name_tbl[] = {"dbDatabase",
                                  "dbModInst",
                                  "dbGroup",
                                  "dbGCellGrid",
+                                 "dbAccessPoint",
                                  // Generator Code End ObjectNames
 
                                  // Lib Objects

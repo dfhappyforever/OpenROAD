@@ -27,6 +27,34 @@ To remove the button:
 gui::remove_toolbar_button name
 ```
 
+### Add items to the menubar
+
+```
+create_menu_item [-name name]
+                 [-path menu_path]
+                 -text item_text
+                 -script tcl_script
+                 [-shortcut key_shortcut] 
+                 [-echo]
+```
+
+Returns: name of the new item, either ``name`` or ``actionX``.
+
+Options description:
+- ``item_text``: The text to put on the item.
+- ``tcl_script``: The tcl script to evaluate when the button is pressed.
+- ``name``: (optional) name of the item, used when deleting the item.
+- ``menu_path``: (optional) Menu path to place the new item in (hierarchy is separated by /), defaults to "Custom Scripts", but this can also be "Tools" or "New menu/New submenu".
+- ``key_shortcut``: (optional) key shortcut to trigger this item.
+- ``echo``: (optional) indicate that the commands in the ``tcl_script`` should be echoed in the log.
+
+To remove the item: 
+
+```
+gui::remove_menu_item name
+```
+
+
 ### Save screenshot of layout
 
 This command can be both be used when the GUI is active and not active.
@@ -54,10 +82,40 @@ select -type object_type
        [-highlight group]
 ```
 
+Returns: number of objects selected.
+
 Options description:
-- ``object_type``: name of the object typ. For example, ``Inst`` for instances, ``Net`` for nets, and ``DRC`` for DRC violations.
+- ``object_type``: name of the object type. For example, ``Inst`` for instances, ``Net`` for nets, and ``DRC`` for DRC violations.
 - ``glob_pattern``: (optional) filter selection by the specified name. For example, to only select clk nets ``*clk*``. Use ``-case_insensitive`` to filter based on case insensitive instead of case sensitive.
 - ``group``: (optional) add the selection to the specific highlighting group. Values can be 0 to 7.
+
+### Displaying timing cones
+
+```
+display_timing_cone pin
+                    [-fanin]
+                    [-fanout]
+                    [-off]
+```
+
+Options description:
+- ``pin``: name of the instance or block pin.
+- ``fanin``: (optional) display the fanin timing cone.
+- ``fanout``: (optional) display the fanout timing cone.
+- ``off``: (optional) remove the timing cone.
+
+### Limit drawing to specific nets
+
+```
+focus_net net
+          [-remove]
+          [-clear]
+```
+
+Options description:
+- ``pin``: name of the net.
+- ``remove``: (optional) removes the net from from the focus.
+- ``clear``: (optional) clears all nets from focus.
 
 ## TCL functions
 
@@ -317,7 +375,41 @@ To remove all the rulers:
 gui::clear_rulers
 ```
 
-### GUI Controls
+### Heat Maps
+
+The currently availble heat maps are:
+
+- ``Power``
+- ``Routing``
+- ``Placement``
+- ``IRDrop``
+
+To control the settings in the heat maps:
+
+```
+gui::set_heatmap name option
+gui::set_heatmap name option value
+```
+
+Options description:
+- ``name`` is the name of the heatmap.
+- ``option`` is the name of the option to modify. If option is ``rebuild`` the map will be destroyed and rebuilt.
+- ``value`` is the new value for the specified option. This is not used when rebuilding map.
+
+These options can also be modified in the GUI by double-clicking the underlined display control for the heat map.
+
+
+To save the raw data from the heat maps ins a comma separated value (CSV) format:
+
+```
+gui::dump_heatmap name filename
+```
+
+Options description: 
+- ``name`` is the name of the heatmap.
+- ``filename`` path to the file to write the data to.
+
+### GUI Display Controls
 
 Control the visible and selected elements in the layout:
 
@@ -329,6 +421,26 @@ Options description:
 - ``name`` is the name of the control. For example, for the power nets option this would be ``Signals/Power`` or could be ``Layers/*`` to set the option for all the layers.
 - ``display_type`` is either ``visible`` or ``selectable``
 - ``value`` is either ``true`` or ``false``
+
+To check the visibility or selectability of elements in the layout:
+
+```
+gui::check_display_controls name display_type 
+```
+
+Options description: 
+- ``name`` is the name of the control. For example, for the power nets option this would be ``Signals/Power`` or could be ``Layers/*`` to set the option for all the layers.
+- ``display_type`` is either ``visible`` or ``selectable``
+
+
+When performing a batch operation changing the display controls settings, the following commands can be used to save the current state of the display controls and restore them at the end.
+
+```
+gui::save_display_controls
+gui::restore_display_controls
+```
+
+### GUI Controls
 
 To request user input via the GUI:
 

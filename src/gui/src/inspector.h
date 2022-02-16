@@ -110,12 +110,13 @@ class SelectedItemModel : public QStandardItemModel
 
  private:
   void makePropertyItem(const Descriptor::Property& property, QStandardItem*& name_item, QStandardItem*& value_item);
-  QStandardItem* makeItem(const Selected& selected);
   QStandardItem* makeItem(const QString& name);
-  QStandardItem* makeItem(const std::any& item);
+  QStandardItem* makeItem(const std::any& item, bool short_name = false);
 
   template<typename Iterator>
-  QStandardItem* makeItem(QStandardItem* name_item, const Iterator& begin, const Iterator& end);
+  QStandardItem* makeList(QStandardItem* name_item, const Iterator& begin, const Iterator& end);
+  template<typename Iterator>
+  QStandardItem* makePropertyList(QStandardItem* name_item, const Iterator& begin, const Iterator& end);
 
   void makeItemEditor(const std::string& name,
                       QStandardItem* item,
@@ -189,7 +190,7 @@ class Inspector : public QDockWidget
   Q_OBJECT
 
  public:
-  Inspector(const SelectionSet& selected, QWidget* parent = nullptr);
+  Inspector(const SelectionSet& selected, const HighlightSet& highlighted, QWidget* parent = nullptr);
 
   const Selected& getSelection() { return selection_; }
 
@@ -201,10 +202,15 @@ class Inspector : public QDockWidget
   void selection(const Selected& selected);
   void focus(const Selected& selected);
 
+  void addHighlight(const SelectionSet& selection);
+  void removeHighlight(const QList<const Selected*>& selected);
+
  public slots:
   void inspect(const Selected& object);
   void clicked(const QModelIndex& index);
   void update(const Selected& object = Selected());
+  void highlightChanged();
+  void focusNetsChanged();
 
   int selectNext();
   int selectPrevious();
@@ -224,7 +230,13 @@ class Inspector : public QDockWidget
   void handleAction(QWidget* action);
   void loadActions();
 
+  void adjustHeaders();
+
   int getSelectedIteratorPosition();
+
+  bool isHighlighted(const Selected& selected);
+
+  void makeAction(const Descriptor::Action& action);
 
   // The columns in the tree view
   enum Column
@@ -247,7 +259,10 @@ class Inspector : public QDockWidget
   QTimer mouse_timer_;
   QModelIndex clicked_index_;
 
+  const HighlightSet& highlighted_;
+
   std::map<QWidget*, Descriptor::ActionCallback> actions_;
+  Descriptor::ActionCallback deselect_action_;
 
   // used to finetune the double click interval
   static constexpr double mouse_double_click_scale_ = 0.75;

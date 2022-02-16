@@ -35,6 +35,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include "odb/db.h"
 #include "odb/dbBlockCallBackObj.h"
 #include "sta/Sta.hh"
@@ -59,6 +61,7 @@ class dbNetwork;
 class dbStaReport;
 class dbStaCbk;
 class PathRenderer;
+class PowerDensityDataSource;
 
 using ord::OpenRoad;
 using utl::Logger;
@@ -84,9 +87,13 @@ public:
 	    dbDatabase *db,
             gui::Gui *gui,
             Logger *logger);
+  // for makeBlockSta
+  void initVars(Tcl_Interp *tcl_interp,
+                dbDatabase *db,
+                gui::Gui *gui,
+                Logger *logger);
 
   dbDatabase *db() { return db_; }
-  virtual void makeComponents() override;
   dbNetwork *getDbNetwork() { return db_network_; }
   dbStaReport *getDbReport() { return db_report_; }
 
@@ -134,6 +141,8 @@ protected:
   dbStaReport *db_report_;
   dbStaCbk *db_cbk_;
   PathRenderer *path_renderer_;
+
+  std::unique_ptr<PowerDensityDataSource> power_density_heatmap_;
 };
 
 // Make a stand-alone (scratchpad) sta for block.

@@ -12,16 +12,10 @@
 [INFO ODB-0132]     Created 2 special nets and 0 connections.
 [INFO ODB-0133]     Created 11 nets and 25 connections.
 [INFO ODB-0134] Finished DEF file: multi_height04.def
-[WARNING DPL-0018] detailed placement failed on _281_.
-Placement Analysis
----------------------------------
-total displacement          5.6 u
-average displacement        0.6 u
-max displacement            2.1 u
-original HPWL              81.8 u
-legalized HPWL             84.7 u
-delta HPWL                    3 %
-
+[INFO DPL-0034] Detailed placement failed on:
+[INFO DPL-0035]  _281_
+[ERROR DPL-0036] Detailed placement failed.
+DPL-0036
 [WARNING DPL-0005] Overlap check failed (4).
  _281_ overlaps _282_
  _280_ overlaps _281_
@@ -31,4 +25,6 @@ delta HPWL                    3 %
  _281_
 [WARNING DPL-0007] Power line check failed (1).
  _281_
+[ERROR DPL-0033] detailed placement checks failed.
+DPL-0033
 No differences found.

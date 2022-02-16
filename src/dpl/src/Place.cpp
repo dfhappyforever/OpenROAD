@@ -46,7 +46,6 @@
 
 #include "Graphics.h"
 #include "utl/Logger.h"
-#include "ord/OpenRoad.hh"
 
 //#define ODP_DEBUG
 
@@ -60,7 +59,6 @@ using std::sort;
 using std::string;
 using std::vector;
 
-using ord::closestPtInRect;
 using utl::DPL;
 
 static bool
@@ -73,6 +71,7 @@ Opendp::detailedPlacement()
     graphics_->startPlacement(block_);
   }
 
+  placement_failures_.clear();
   initGrid();
   // Paint fixed cells.
   setFixedGridCells();
@@ -283,7 +282,7 @@ Opendp::place()
     if (!(isFixed(&cell) || cell.inGroup() || cell.is_placed_)) {
       sorted_cells.push_back(&cell);
       if (!cellFitsInCore(&cell)) {
-        logger_->warn(DPL, 15, "instance {} does not fit inside the ROW core area.",
+        logger_->error(DPL, 15, "instance {} does not fit inside the ROW core area.",
                       cell.name());
       }
     }
@@ -408,7 +407,7 @@ Opendp::brickPlace1(const Group *group)
     // which seems broken. It should start looking at the nearest point
     // on the rect boundary. -cherry
     if (!mapMove(cell, legal)) {
-      logger_->warn(DPL, 16, "cannot place instance {}.", cell->name());
+      logger_->error(DPL, 16, "cannot place instance {}.", cell->name());
     }
   }
 }
@@ -468,7 +467,7 @@ Opendp::brickPlace2(const Group *group)
       // which seems broken. It should start looking at the nearest point
       // on the rect boundary. -cherry
       if (!mapMove(cell, legal))
-        logger_->warn(DPL, 17, "cannot place instance {}.", cell->name());
+        logger_->error(DPL, 17, "cannot place instance {}.", cell->name());
     }
   }
 }
@@ -583,7 +582,7 @@ Opendp::mapMove(Cell *cell,
   return false;
 }
 
-bool
+void
 Opendp::shiftMove(Cell *cell)
 {
   Point grid_pt = legalGridPt(cell, true);
@@ -612,23 +611,15 @@ Opendp::shiftMove(Cell *cell)
   }
 
   // place target cell
-  if (!mapMove(cell)) {
-    logger_->warn(DPL, 18, "detailed placement failed on {}.",
-                  cell->name());
-    return false;
-  }
+  if (!mapMove(cell))
+    placement_failures_.push_back(cell->db_inst_);
 
   // re-place erased cells
   for (Cell *around_cell : region_cells) {
-    if (cell->inGroup() == around_cell->inGroup()) {
-      if (!mapMove(around_cell)) {
-        logger_->warn(DPL, 19, "detailed placement failed on {}",
-                      around_cell->name());
-        return false;
-      }
-    }
+    if (cell->inGroup() == around_cell->inGroup()
+        && !mapMove(around_cell))
+      placement_failures_.push_back(cell->db_inst_);
   }
-  return true;
 }
 
 bool
@@ -718,8 +709,8 @@ Opendp::diamondSearch(const Cell *cell,
                        divCeil(group->boundary.yMin(), row_height_),
                        group->boundary.xMax() / site_width_,
                        group->boundary.yMax() / row_height_);
-    Point min = closestPtInRect(grid_boundary, x_min, y_min);
-    Point max = closestPtInRect(grid_boundary, x_max, y_max);
+    Point min = grid_boundary.closestPtInside(Point(x_min, y_min));
+    Point max = grid_boundary.closestPtInside(Point(x_max, y_max));
     x_min = min .getX();
     y_min = min .getY();
     x_max = max.getX();
@@ -987,7 +978,7 @@ Opendp::moveHopeless(int& grid_x, int& grid_y) const
       break;
     }
   }
-  for (int y = grid_y + 1; y < row_site_count_; ++y) { // above
+  for (int y = grid_y + 1; y < row_count_; ++y) { // above
     if (grid_[y][grid_x].is_valid) {
       int dist = (y - grid_y) * row_height_;
       if (dist < best_dist) {
