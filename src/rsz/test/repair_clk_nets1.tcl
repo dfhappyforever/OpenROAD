@@ -4,6 +4,7 @@ read_lef Nangate45/Nangate45.lef
 read_def repair_wire1.def
 create_clock in1 -period 10
 
+source Nangate45/Nangate45.rc
 set_wire_rc -layer metal3
 estimate_parasitics -placement
 
@@ -14,7 +15,7 @@ foreach net_name {in1 n2 n2} {
 # wire length = 1500u -> 2 buffers required
 repair_clock_nets -max_wire_length 600
 
-puts [[sta::sta_to_db_net [get_net net2]] getSigType]
+puts [[sta::sta_to_db_net [get_net net1]] getSigType]
 
 report_long_wires 4
 report_checks -unconstrained -fields {input slew cap} -rise_to out1

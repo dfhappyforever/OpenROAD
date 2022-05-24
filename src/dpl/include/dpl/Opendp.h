@@ -41,6 +41,7 @@
 
 #include <functional>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <set>
 #include <vector>
@@ -56,6 +57,7 @@ class Logger;
 namespace dpl {
 
 using std::map;
+using std::unordered_map;
 using std::set;
 using std::string;
 using std::vector;
@@ -91,16 +93,9 @@ using GapFillers = vector<dbMasterSeq>;
 typedef map<dbInst*, pair<int, int>> InstPaddingMap;
 typedef map<dbMaster*, pair<int, int>> MasterPaddingMap;
 
-enum Power {
-  undefined,
-  VDD,
-  VSS
-};
-
-struct Macro
+struct Master
 {
-  bool is_multi_row_;
-  Power top_power_;  // VDD/VSS
+  bool is_multi_row = false;
 };
 
 struct Cell
@@ -136,6 +131,7 @@ struct Pixel
   Cell *cell;
   Group *group_;
   double util;
+  dbOrientType orient_;
   bool is_valid;  // false for dummy cells
   bool is_hopeless; // too far from sites for diamond search
 };
@@ -144,14 +140,22 @@ struct Pixel
 class NetBox
 {
 public:
-  NetBox(dbNet *n);
+  NetBox();
+  NetBox(dbNet *net,
+         Rect box,
+         bool ignore);
   int64_t hpwl();
+  void saveBox();
+  void restoreBox();
 
-  dbNet *net;
-  Rect box;
+  dbNet *net_;
+  Rect box_;
+  Rect box_saved_;
+  bool ignore_;
 };
 
-typedef vector<NetBox> NetBoxes;
+typedef unordered_map<dbNet*, NetBox> NetBoxMap;
+typedef vector<NetBox*> NetBoxes;
 
 ////////////////////////////////////////////////////////////////
 
@@ -209,8 +213,6 @@ public:
   int64_t hpwl() const;
   int64_t hpwl(dbNet *net) const;
   void findDisplacementStats();
-  void setPowerNetName(const char *power_name);
-  void setGroundNetName(const char *ground_name);
   void optimizeMirroring();
   void reportGrid();
 
@@ -225,22 +227,18 @@ private:
   void importDb();
   void importClear();
   Rect getBbox(dbInst *inst);
-  void reportImportWarnings();
   void makeMacros();
   void examineRows();
   void makeCells();
   static bool isPlacedType(dbMasterType type);
   void makeGroups();
-  void findRowPower();
   double dbuToMicrons(int64_t dbu) const;
   double dbuAreaToMicrons(int64_t dbu_area) const;
   bool isFixed(const Cell *cell) const;  // fixed cell or not
   bool isMultiRow(const Cell *cell) const;
-  Power topPower(const Cell *cell) const;
   void updateDbInstLocations();
 
-  void defineTopPower(Macro *macro, dbMaster *master);
-  int find_ymax(dbMTerm *term) const;
+  void makeMaster(Master *master, dbMaster *db_master);
 
   void initGrid();
   void detailedPlacement();
@@ -324,7 +322,6 @@ private:
 
   // checkPlacement
   static bool isPlaced(const Cell *cell);
-  bool checkPowerLine(const Cell &cell) const;
   bool checkInRows(const Cell &cell) const;
   Cell *checkOverlap(Cell &cell) const;
   bool overlap(const Cell *cell1, const Cell *cell2) const;
@@ -348,8 +345,6 @@ private:
                 int *x,
                 int *y) const;
   int rectDist(const Cell *cell, const Rect *rect) const;
-  Power rowTopPower(int row) const;
-  dbOrientType rowOrient(int row) const;
   bool havePadding() const;
 
   void deleteGrid();
@@ -395,13 +390,14 @@ private:
                            int col);
 
   // Optimizing mirroring
-  void findNetBoxes(NetBoxes &net_boxes);
-  void findMirrorCandidates(NetBoxes &net_boxes,
-                            vector<dbInst*> &mirror_candidates);
+  void findNetBoxes();
+  vector<dbInst*> findMirrorCandidates(NetBoxes &net_boxes);
   int mirrorCandidates(vector<dbInst*> &mirror_candidates);
   // Sum of ITerm hpwl's.
   int64_t hpwl(dbInst *inst);
-  bool isSupply(dbNet *net) const;
+  void updateNetBoxes(dbInst *inst);
+  void saveNetBoxes(dbInst *inst);
+  void restoreNetBoxes(dbInst *inst);
 
   Logger *logger_;
   dbDatabase *db_;
@@ -414,14 +410,10 @@ private:
   vector<Cell> cells_;
   vector<Group> groups_;
 
-  map<const dbMaster *, Macro> db_master_map_;
+  map<const dbMaster *, Master> db_master_map_;
   map<dbInst *, Cell *> db_inst_map_;
 
   Rect core_;
-  Power initial_power_;
-  bool row0_orient_is_r0_;
-  bool row0_top_power_is_vdd_;
-  Power macro_top_power_;
   int row_height_;  // dbu
   int site_width_;  // dbu
   int row_count_;
@@ -446,6 +438,9 @@ private:
   int64_t displacement_sum_;
   int64_t displacement_max_;
 
+  // Optimiize mirroring.
+  NetBoxMap net_box_map_;
+
   std::unique_ptr<Graphics> graphics_;
 
   // Magic numbers
@@ -453,6 +448,9 @@ private:
   static constexpr double group_refine_percent_ = .05;
   static constexpr double refine_percent_ = .02;
   static constexpr int rand_seed_ = 777;
+  // Net bounding box siaz on nets with more instance terminals
+  // than this are ignored.
+  static constexpr int mirror_max_iterm_count_ = 100;
 };
 
 int

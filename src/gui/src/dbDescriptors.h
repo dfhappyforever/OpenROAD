@@ -55,6 +55,34 @@ namespace gui {
 class DbInstDescriptor : public Descriptor
 {
  public:
+  enum Type {
+    BLOCK,
+    PAD,
+    PAD_INPUT,
+    PAD_OUTPUT,
+    PAD_INOUT,
+    PAD_POWER,
+    PAD_SPACER,
+    PAD_AREAIO,
+    ENDCAP,
+    FILL,
+    TAPCELL,
+    BUMP,
+    COVER,
+    ANTENNA,
+    TIE,
+    LEF_OTHER,
+    STD_CELL,
+    STD_BUFINV,
+    STD_BUFINV_CLK_TREE,
+    STD_BUFINV_TIMING_REPAIR,
+    STD_CLOCK_GATE,
+    STD_LEVEL_SHIFT,
+    STD_SEQUENTIAL,
+    STD_PHYSICAL,
+    STD_COMBINATIONAL,
+    STD_OTHER
+  };
   DbInstDescriptor(odb::dbDatabase* db, sta::dbSta* sta);
 
   std::string getName(std::any object) const override;
@@ -74,6 +102,9 @@ class DbInstDescriptor : public Descriptor
   bool lessThan(std::any l, std::any r) const override;
 
   bool getAllObjects(SelectionSet& objects) const override;
+
+  Type getInstanceType(odb::dbInst* inst) const;
+  std::string getInstanceTypeText(Type type) const;
 
  private:
   void makeMasterOptions(odb::dbMaster* master, std::vector<EditorOption>& options) const;
@@ -320,6 +351,78 @@ class DbItermAccessPointDescriptor : public Descriptor
 
  private:
   odb::dbDatabase* db_;
+};
+
+class DbGroupDescriptor : public Descriptor
+{
+ public:
+  DbGroupDescriptor(odb::dbDatabase* db);
+
+  std::string getName(std::any object) const override;
+  std::string getTypeName() const override;
+  bool getBBox(std::any object, odb::Rect& bbox) const override;
+
+  void highlight(std::any object,
+                 Painter& painter,
+                 void* additional_data) const override;
+
+  Properties getProperties(std::any object) const override;
+  Selected makeSelected(std::any object, void* additional_data) const override;
+  bool lessThan(std::any l, std::any r) const override;
+
+  bool getAllObjects(SelectionSet& objects) const override;
+
+ private:
+  odb::dbDatabase* db_;
+};
+
+class DbRegionDescriptor : public Descriptor
+{
+ public:
+  DbRegionDescriptor(odb::dbDatabase* db);
+
+  std::string getName(std::any object) const override;
+  std::string getTypeName() const override;
+  bool getBBox(std::any object, odb::Rect& bbox) const override;
+
+  void highlight(std::any object,
+                 Painter& painter,
+                 void* additional_data) const override;
+
+  Properties getProperties(std::any object) const override;
+  Selected makeSelected(std::any object, void* additional_data) const override;
+  bool lessThan(std::any l, std::any r) const override;
+
+  bool getAllObjects(SelectionSet& objects) const override;
+
+ private:
+  odb::dbDatabase* db_;
+};
+
+class DbModuleDescriptor : public Descriptor
+{
+ public:
+  DbModuleDescriptor(odb::dbDatabase* db);
+
+  std::string getName(std::any object) const override;
+  std::string getShortName(std::any object) const override;
+  std::string getTypeName() const override;
+  bool getBBox(std::any object, odb::Rect& bbox) const override;
+
+  void highlight(std::any object,
+                 Painter& painter,
+                 void* additional_data) const override;
+
+  Properties getProperties(std::any object) const override;
+  Selected makeSelected(std::any object, void* additional_data) const override;
+  bool lessThan(std::any l, std::any r) const override;
+
+  bool getAllObjects(SelectionSet& objects) const override;
+
+ private:
+  odb::dbDatabase* db_;
+
+  void getModules(odb::dbModule* module, SelectionSet& objects) const;
 };
 
 };  // namespace gui

@@ -229,14 +229,13 @@ class FlexGridGraph
         mIdx1.setY(max(0, mIdx1.y() - 1));
       }
     }
-    mIdx2.set(
-        frMIdx(std::upper_bound(xCoords_.begin(), xCoords_.end(), box.xMax())
-               - xCoords_.begin())
-            - 1,
-        frMIdx(std::upper_bound(yCoords_.begin(), yCoords_.end(), box.yMax())
-               - yCoords_.begin())
-            - 1,
-        mIdx2.z());
+    const int ux
+        = std::upper_bound(xCoords_.begin(), xCoords_.end(), box.xMax())
+          - xCoords_.begin();
+    const int uy
+        = std::upper_bound(yCoords_.begin(), yCoords_.end(), box.yMax())
+          - yCoords_.begin();
+    mIdx2.set(frMIdx(max(0, ux - 1)), frMIdx(max(0, uy - 1)), mIdx2.z());
     if (enclosureOption == 2) {
       if (xCoords_[mIdx2.x()] > box.xMax()) {
         mIdx2.setX(max(0, mIdx2.x() - 1));
@@ -247,10 +246,8 @@ class FlexGridGraph
     }
   }
   frCoord getZHeight(frMIdx in) const { return zHeights_[in]; }
-  dbTechLayerDir getZDir(frMIdx in) const
-  {
-    return layerRouteDirections_[in];
-  }
+  dbTechLayerDir getZDir(frMIdx in) const { return layerRouteDirections_[in]; }
+  int getLayerCount() { return zCoords_.size(); }
   bool hasEdge(frMIdx x, frMIdx y, frMIdx z, frDirEnum dir) const
   {
     correct(x, y, z, dir);
@@ -286,8 +283,11 @@ class FlexGridGraph
     }
     return sol;
   }
-  //gets fixed shape cost in the adjacent node following dir
-  frUInt4 getFixedShapeCostAdj(frMIdx x, frMIdx y, frMIdx z, frDirEnum dir) const
+  // gets fixed shape cost in the adjacent node following dir
+  frUInt4 getFixedShapeCostAdj(frMIdx x,
+                               frMIdx y,
+                               frMIdx z,
+                               frDirEnum dir) const
   {
     frUInt4 sol = 0;
     if (dir != frDirEnum::D && dir != frDirEnum::U) {
@@ -314,8 +314,11 @@ class FlexGridGraph
       return nodes_[idx].overrideShapeCostVia;
     }
   }
-  //gets route shape cost in the adjacent node following dir
-  frUInt4 getRouteShapeCostAdj(frMIdx x, frMIdx y, frMIdx z, frDirEnum dir) const
+  // gets route shape cost in the adjacent node following dir
+  frUInt4 getRouteShapeCostAdj(frMIdx x,
+                               frMIdx y,
+                               frMIdx z,
+                               frDirEnum dir) const
   {
     frUInt4 sol = 0;
     if (dir != frDirEnum::D && dir != frDirEnum::U) {
@@ -333,7 +336,7 @@ class FlexGridGraph
   {
     return getRouteShapeCostAdj(x, y, z, dir);
   }
-  //gets marker cost in the adjacent node following dir
+  // gets marker cost in the adjacent node following dir
   frUInt4 getMarkerCostAdj(frMIdx x, frMIdx y, frMIdx z, frDirEnum dir) const
   {
     frUInt4 sol = 0;
@@ -772,7 +775,7 @@ class FlexGridGraph
     if (x2 < x1 || y2 < y1) {
       return;
     }
-    switch(getZDir(z)) {
+    switch (getZDir(z)) {
       case dbTechLayerDir::HORIZONTAL:
         for (int i = y1; i <= y2; i++) {
           auto idx1 = getIdx(x1, i, z);
@@ -797,7 +800,7 @@ class FlexGridGraph
     if (x2 < x1 || y2 < y1) {
       return;
     }
-    switch(getZDir(z)) {
+    switch (getZDir(z)) {
       case dbTechLayerDir::HORIZONTAL:
         for (int i = y1; i <= y2; i++) {
           auto idx1 = getIdx(x1, i, z);
@@ -928,29 +931,30 @@ class FlexGridGraph
     wavefront_.fit();
   }
 
-  void printNode(frMIdx x, frMIdx y, frMIdx z) {
-      Node& n = nodes_[getIdx(x, y, z)];
-      cout << "\nNode ( " << x << " " << y << " " << z << " ) (idx) / " << 
-                " ( " << xCoords_[x] << " " << yCoords_[y] << " ) (coords)\n";
-      cout << "hasEastEdge " << n.hasEastEdge << "\n";
-      cout << "hasNorthEdge " << n.hasNorthEdge << "\n";
-      cout << "hasUpEdge " << n.hasUpEdge << "\n";
-      cout << "isBlockedEast " << n.isBlockedEast << "\n";
-      cout << "isBlockedNorth " << n.isBlockedNorth << "\n";
-      cout << "isBlockedUp " << n.isBlockedUp << "\n";
-      cout << "hasSpecialVia " << n.hasSpecialVia << "\n";
-      cout << "overrideShapeCostVia " << n.overrideShapeCostVia << "\n";
-      cout << "hasGridCostEast " << n.hasGridCostEast << "\n";
-      cout << "hasGridCostNorth " << n.hasGridCostNorth << "\n";
-      cout << "hasGridCostUp " << n.hasGridCostUp << "\n";
-      cout << "routeShapeCostPlanar " << n.routeShapeCostPlanar << "\n";
-      cout << "routeShapeCostVia " << n.routeShapeCostVia << "\n";
-      cout << "markerCostPlanar " << n.markerCostPlanar << "\n";
-      cout << "markerCostVia " << n.markerCostVia << "\n";
-      cout << "fixedShapeCostVia " << n.fixedShapeCostVia << "\n";
-      cout << "fixedShapeCostPlanar " << n.fixedShapeCostPlanar << "\n";
+  void printNode(frMIdx x, frMIdx y, frMIdx z)
+  {
+    Node& n = nodes_[getIdx(x, y, z)];
+    cout << "\nNode ( " << x << " " << y << " " << z << " ) (idx) / "
+         << " ( " << xCoords_[x] << " " << yCoords_[y] << " ) (coords)\n";
+    cout << "hasEastEdge " << n.hasEastEdge << "\n";
+    cout << "hasNorthEdge " << n.hasNorthEdge << "\n";
+    cout << "hasUpEdge " << n.hasUpEdge << "\n";
+    cout << "isBlockedEast " << n.isBlockedEast << "\n";
+    cout << "isBlockedNorth " << n.isBlockedNorth << "\n";
+    cout << "isBlockedUp " << n.isBlockedUp << "\n";
+    cout << "hasSpecialVia " << n.hasSpecialVia << "\n";
+    cout << "overrideShapeCostVia " << n.overrideShapeCostVia << "\n";
+    cout << "hasGridCostEast " << n.hasGridCostEast << "\n";
+    cout << "hasGridCostNorth " << n.hasGridCostNorth << "\n";
+    cout << "hasGridCostUp " << n.hasGridCostUp << "\n";
+    cout << "routeShapeCostPlanar " << n.routeShapeCostPlanar << "\n";
+    cout << "routeShapeCostVia " << n.routeShapeCostVia << "\n";
+    cout << "markerCostPlanar " << n.markerCostPlanar << "\n";
+    cout << "markerCostVia " << n.markerCostVia << "\n";
+    cout << "fixedShapeCostVia " << n.fixedShapeCostVia << "\n";
+    cout << "fixedShapeCostPlanar " << n.fixedShapeCostPlanar << "\n";
   }
-  
+
  private:
   frTechObject* tech_;
   FlexDRWorker* drWorker_;
@@ -1036,8 +1040,8 @@ class FlexGridGraph
     auto ySize = yCoords_.size();
 
     frMIdx zDirModifier = (getZDir(zIdx) == dbTechLayerDir::HORIZONTAL)
-                        ? (xIdx + yIdx * xSize)
-                        : (yIdx + xIdx * ySize);
+                              ? (xIdx + yIdx * xSize)
+                              : (yIdx + xIdx * ySize);
     frMIdx partialCoordinates = zIdx * xSize * ySize;
 
     return zDirModifier + partialCoordinates;
@@ -1143,14 +1147,13 @@ class FlexGridGraph
     return sol && isValid(x, y, z);
   }
   // internal init utility
-  void initTracks(
-      const frDesign* design,
-      std::map<frCoord, std::map<frLayerNum, frTrackPattern*>>&
-          horLoc2TrackPatterns,
-      std::map<frCoord, std::map<frLayerNum, frTrackPattern*>>&
-          vertLoc2TrackPatterns,
-      std::map<frLayerNum, dbTechLayerDir>& layerNum2PreRouteDir,
-      const Rect& bbox);
+  void initTracks(const frDesign* design,
+                  std::map<frCoord, std::map<frLayerNum, frTrackPattern*>>&
+                      horLoc2TrackPatterns,
+                  std::map<frCoord, std::map<frLayerNum, frTrackPattern*>>&
+                      vertLoc2TrackPatterns,
+                  std::map<frLayerNum, dbTechLayerDir>& layerNum2PreRouteDir,
+                  const Rect& bbox);
   void initGrids(
       const std::map<frCoord, std::map<frLayerNum, frTrackPattern*>>& xMap,
       const std::map<frCoord, std::map<frLayerNum, frTrackPattern*>>& yMap,
@@ -1186,12 +1189,14 @@ class FlexGridGraph
               const FlexMazeIdx& dstMazeIdx1,
               const FlexMazeIdx& dstMazeIdx2,
               const Point& centerPt);
-  bool hasAlignedUpDefTrack(frLayerNum layerNum,
-                        const map<frLayerNum, frTrackPattern*>& xSubMap,
-                        const map<frLayerNum, frTrackPattern*>& ySubMap) const;
+  bool hasAlignedUpDefTrack(
+      frLayerNum layerNum,
+      const map<frLayerNum, frTrackPattern*>& xSubMap,
+      const map<frLayerNum, frTrackPattern*>& ySubMap) const;
 
  private:
   bool outOfDieVia(frMIdx x, frMIdx y, frMIdx z, const Rect& dieBox);
+  bool hasOutOfDieViol(frMIdx x, frMIdx y, frMIdx z);
   bool isWorkerBorder(frMIdx v, bool isVert);
 
   template <class Archive>

@@ -47,6 +47,7 @@
 #include "dbModInst.h"
 #include "dbModuleInstItr.h"
 #include "dbModuleModInstItr.h"
+#include "utl/Logger.h"
 // User Code End Includes
 namespace odb {
 
@@ -192,42 +193,74 @@ void dbModule::addInst(dbInst* inst)
   _dbInst* _inst = (_dbInst*) inst;
   _dbBlock* block = (_dbBlock*) module->getOwner();
 
+  if (_inst->_flags._physical_only) {
+    _inst->getLogger()->error(
+        utl::ODB,
+        297,
+        "Physical only instance {} can't be added to module {}",
+        inst->getName(),
+        getName());
+  }
+
+  if (_inst->_module == module->getOID()) {
+    return;  // already in this module
+  }
+
   if (_inst->_module != 0) {
     dbModule* mod = dbModule::getModule((dbBlock*) block, _inst->_module);
-    mod->removeInst(inst);
+    ((_dbModule*) mod)->removeInst(inst);
   }
 
   _inst->_module = module->getOID();
-  _inst->_module_next = module->_insts;
+
+  if (module->_insts != 0) {
+    _dbInst* tail = block->_inst_tbl->getPtr(module->_insts);
+    _inst->_module_next = module->_insts;
+    _inst->_module_prev = 0;
+    tail->_module_prev = _inst->getOID();
+  } else {
+    _inst->_module_next = 0;
+    _inst->_module_prev = 0;
+  }
+
   module->_insts = _inst->getOID();
 }
 
-void dbModule::removeInst(dbInst* inst)
+
+void _dbModule::removeInst(dbInst* inst)
 {
   _dbModule* module = (_dbModule*) this;
   _dbInst* _inst = (_dbInst*) inst;
-  if (_inst->_module != module->getOID())
+  if (_inst->_module != getOID())
     return;
-  _dbBlock* block = (_dbBlock*) module->getOwner();
+  _dbBlock* block = (_dbBlock*) getOwner();
   uint id = _inst->getOID();
 
-  _dbInst* prev = NULL;
-  uint cur = module->_insts;
-  while (cur) {
-    _dbInst* c = block->_inst_tbl->getPtr(cur);
-    if (cur == id) {
-      if (prev == NULL)
-        module->_insts = _inst->_module_next;
-      else
-        prev->_module_next = _inst->_module_next;
-      break;
+
+  if (module->_insts == id) {
+    module->_insts = _inst->_module_next;
+
+    if (module->_insts != 0) {
+      _dbInst* t = block->_inst_tbl->getPtr(module->_insts);
+      t->_module_prev = 0;
     }
-    prev = c;
-    cur = c->_module_next;
+  } else {
+    if (_inst->_module_next != 0) {
+      _dbInst* next = block->_inst_tbl->getPtr(_inst->_module_next);
+      next->_module_prev = _inst->_module_prev;
+    }
+
+    if (_inst->_module_prev != 0) {
+      _dbInst* prev = block->_inst_tbl->getPtr(_inst->_module_prev);
+      prev->_module_next = _inst->_module_next;
+    }
   }
+
   _inst->_module = 0;
   _inst->_module_next = 0;
+  _inst->_module_prev = 0;
 }
+
 
 dbSet<dbModInst> dbModule::getChildren()
 {
@@ -260,18 +293,27 @@ void dbModule::destroy(dbModule* module)
   _dbModule* _module = (_dbModule*) module;
   _dbBlock* block = (_dbBlock*) _module->getOwner();
 
+  if (block->_top_module == module->getId()) {
+    _module->getLogger()->error(
+        utl::ODB, 298, "The top module can't be destroyed.");
+  }
+
+  if (_module->_mod_inst != 0) {
+    // Destroying the modInst will destroy this module too.
+    dbModInst::destroy(module->getModInst());
+    return;
+  }
+
   dbSet<dbModInst> modinsts = module->getChildren();
   dbSet<dbModInst>::iterator itr;
   for (itr = modinsts.begin(); itr != modinsts.end();) {
     itr = dbModInst::destroy(itr);
   }
-  if (_module->_mod_inst != 0)
-    dbModInst::destroy(module->getModInst());
 
-  for (auto inst : module->getInsts()) {
-    _dbInst* _inst = (_dbInst*) inst;
-    _inst->_module = 0;
-    _inst->_module_next = 0;
+  dbSet<dbInst> insts = module->getInsts();
+  dbSet<dbInst>::iterator inst_itr;
+  for (inst_itr = insts.begin(); inst_itr != insts.end();) {
+    inst_itr = dbInst::destroy(inst_itr);
   }
 
   dbProperty::destroyProperties(_module);
@@ -291,6 +333,34 @@ dbModInst* dbModule::findModInst(const char* name)
   _dbBlock* par = (_dbBlock*) obj->getOwner();
   std::string h_name = std::string(obj->_name) + "/" + std::string(name);
   return (dbModInst*) par->_modinst_hash.find(h_name.c_str());
+}
+
+static void getLeafInsts(dbModule* module, std::vector<dbInst*>& insts)
+{
+  for (dbInst* inst : module->getInsts()) {
+    insts.push_back(inst);
+  }
+
+  for (dbModInst* inst : module->getChildren()) {
+    getLeafInsts(inst->getMaster(), insts);
+  }
+}
+
+std::vector<dbInst*> dbModule::getLeafInsts()
+{
+  std::vector<dbInst*> insts;
+  odb::getLeafInsts(this, insts);
+  return insts;
+}
+
+std::string dbModule::getHierarchicalName() const
+{
+  dbModInst* inst = getModInst();
+  if (inst) {
+    return inst->getHierarchicalName();
+  } else {
+    return "<top>";
+  }
 }
 
 // User Code End dbModulePublicMethods

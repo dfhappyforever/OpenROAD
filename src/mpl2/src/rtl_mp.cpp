@@ -31,8 +31,6 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "mpl2/rtl_mp.h"
-
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -44,6 +42,7 @@
 #include <vector>
 
 #include "block_placement.h"
+#include "mpl2/rtl_mp.h"
 #include "odb/db.h"
 #include "ord/OpenRoad.hh"
 #include "pin_alignment.h"
@@ -133,7 +132,7 @@ bool rtl_macro_placer(const char* config_file,
   float macro_blockage_weight = macro_blockage_wt;  // weight for macro blockage
   float location_weight = location_wt;  // weight for preferred location
   float notch_weight = notch_wt;        // weight for notch
-  float halo_width = macro_halo;  // halo width around macros
+  float halo_width = macro_halo;        // halo width around macros
 
   float learning_rate
       = 0.00;  // learning rate for dynamic weight in cost function
@@ -240,6 +239,10 @@ bool rtl_macro_placer(const char* config_file,
                                                         num_thread,
                                                         num_run,
                                                         seed);
+
+  if (clusters.empty()) {
+    return true; // nothing to place
+  }
 
   vector<Block> blocks = block_placement::Floorplan(clusters,
                                                     logger,
@@ -356,9 +359,9 @@ bool rtl_macro_placer(const char* config_file,
 
   file.close();
 
-  string invs_filename
+  string txt_filename
       = string("./") + string(report_directory) + "/macro_placement.txt";
-  file.open(invs_filename);
+  file.open(txt_filename);
   for (int i = 0; i < clusters.size(); i++) {
     if (clusters[i]->GetNumMacro() > 0) {
       float cluster_lx = clusters[i]->GetX();
@@ -430,6 +433,28 @@ bool rtl_macro_placer(const char* config_file,
   }
 
   file.close();
+
+  // Write back to odb
+  auto block = db->getChip()->getBlock();
+  for (const auto cluster : clusters) {
+    if (cluster->GetNumMacro() > 0) {
+      float cluster_lx = cluster->GetX();
+      float cluster_ly = cluster->GetY();
+      vector<Macro> macros = cluster->GetMacros();
+      for (const auto& macro : macros) {
+        float lx = outline_lx + cluster_lx + macro.GetX() + halo_width;
+        float ly = outline_ly + cluster_ly + macro.GetY() + halo_width;
+        odb::dbOrientType orientation(macro.GetOrientation().c_str());
+        lx = round(lx / pitch_x) * pitch_x;
+        ly = round(ly / pitch_y) * pitch_y;
+
+        auto inst = block->findInst(macro.GetName().c_str());
+        inst->setOrient(orientation);
+        inst->setLocation(lx * dbu, ly * dbu);
+        inst->setPlacementStatus(odb::dbPlacementStatus::FIRM);
+      }
+    }
+  }
 
   logger->report("Finish RTL-MP");
 

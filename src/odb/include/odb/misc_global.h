@@ -35,7 +35,8 @@
 #include <stdio.h>
 #include <string.h>
 
-void Ath__allocFailure(char* msg);
+namespace odb {
+
 void Ath__hashError(const char* msg, int exitFlag);
 
 void ATH__failMessage(const char* msg);
@@ -46,3 +47,5 @@ void ATH__deallocCharWord(const char* a);
 FILE* ATH__openFile(const char* name, const char* type);
 
 void ATH__closeFile(FILE* fp);
+
+}  // namespace odb

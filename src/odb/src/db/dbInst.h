@@ -61,7 +61,7 @@ struct _dbInstFlags
   uint _user_flag_1 : 1;
   uint _user_flag_2 : 1;
   uint _user_flag_3 : 1;
-  uint _size_only : 1;
+  uint _physical_only : 1;
   uint _dont_touch : 1;
   uint _dont_size : 1;
   dbSourceType::Value _source : 4;
@@ -98,6 +98,7 @@ class _dbInst : public _dbObject
   dbId<_dbInst> _module_next;
   dbId<_dbInst> _group_next;
   dbId<_dbInst> _region_prev;
+  dbId<_dbInst> _module_prev;
   dbId<_dbHier> _hierarchy;
   dbVector<uint> _iterms;
   dbId<_dbBox> _halo;

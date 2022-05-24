@@ -50,34 +50,51 @@
 
 namespace gui {
 
-static std::string convertUnits(double value)
+static std::string convertUnits(double value, bool area = false)
 {
   std::stringstream ss;
   const int precision = 3;
   ss << std::fixed << std::setprecision(precision);
   const char* micron = "\u03BC";
-  int log_units = std::floor(std::log10(value) / 3.0) * 3;
-  if (log_units <= -18) {
-    ss << value * 1e18 << "a";
-  } else if (log_units <= -15) {
-    ss << value * 1e15 << "f";
-  } else if (log_units <= -12) {
-    ss << value * 1e12 << "p";
-  } else if (log_units <= -9) {
-    ss << value * 1e9 << "n";
-  } else if (log_units <= -6) {
-    ss << value * 1e6 << micron;
-  } else if (log_units <= -3) {
-    ss << value * 1e3 << "m";
-  } else if (log_units <= 0) {
-    ss << value;
-  } else if (log_units <= 3) {
-    ss << value * 1e-3 << "k";
-  } else if (log_units <= 6) {
-    ss << value * 1e-6 << "M";
-  } else {
-    ss << value;
+  double log_value = value;
+  if (area) {
+    log_value = std::sqrt(log_value);
   }
+  int log_units = std::floor(std::log10(log_value) / 3.0) * 3;
+  double unit_scale = 1.0;
+  std::string unit = "";
+  if (log_units <= -18) {
+    unit_scale = 1e18;
+    unit = "a";
+  } else if (log_units <= -15) {
+    unit_scale = 1e15;
+    unit = "f";
+  } else if (log_units <= -12) {
+    unit_scale = 1e12;
+    unit = "p";
+  } else if (log_units <= -9) {
+    unit_scale = 1e9;
+    unit = "n";
+  } else if (log_units <= -6) {
+    unit_scale = 1e6;
+    unit = micron;
+  } else if (log_units <= -3) {
+    unit_scale = 1e3;
+    unit = "m";
+  } else if (log_units <= 0) {
+  } else if (log_units <= 3) {
+    unit_scale = 1e-3;
+    unit = "k";
+  } else if (log_units <= 6) {
+    unit_scale = 1e-6;
+    unit = "M";
+  }
+  if (area) {
+    unit_scale *= unit_scale;
+  }
+
+  ss << value * unit_scale << unit;
+
   return ss.str();
 }
 
@@ -221,9 +238,15 @@ Descriptor::Properties DbInstDescriptor::getProperties(std::any object) const
   auto gui = Gui::get();
   auto inst = std::any_cast<odb::dbInst*>(object);
   auto placed = inst->getPlacementStatus();
-  Properties props({{"Master", gui->makeSelected(inst->getMaster())},
-                    {"Placement status", placed.getString()},
-                    {"Source type", inst->getSourceType().getString()}});
+  auto* module = inst->getModule();
+  Properties props;
+  if (module != nullptr) {
+    props.push_back({"Module", gui->makeSelected(module)});
+  }
+  props.push_back({"Master", gui->makeSelected(inst->getMaster())});
+  props.push_back({"Description", getInstanceTypeText(getInstanceType(inst))});
+  props.push_back({"Placement status", placed.getString()});
+  props.push_back({"Source type", inst->getSourceType().getString()});
   if (placed.isPlaced()) {
     int x, y;
     inst->getLocation(x, y);
@@ -244,6 +267,16 @@ Descriptor::Properties DbInstDescriptor::getProperties(std::any object) const
     iterms.push_back({gui->makeSelected(iterm), net_value});
   }
   props.push_back({"ITerms", iterms});
+
+  auto* group = inst->getGroup();
+  if (group != nullptr) {
+    props.push_back({"Group", gui->makeSelected(group)});
+  }
+
+  auto* region = inst->getRegion();
+  if (region != nullptr) {
+    props.push_back({"Region", gui->makeSelected(region)});
+  }
   return props;
 }
 
@@ -386,6 +419,152 @@ bool DbInstDescriptor::getAllObjects(SelectionSet& objects) const
     objects.insert(makeSelected(inst, nullptr));
   }
   return true;
+}
+
+std::string DbInstDescriptor::getInstanceTypeText(Type type) const
+{
+  switch (type) {
+  case BLOCK:
+    return "Macro";
+  case PAD:
+    return "Pad";
+  case PAD_INPUT:
+    return "Input pad";
+  case PAD_OUTPUT:
+    return "Output pad";
+  case PAD_INOUT:
+    return "Input/output pad";
+  case PAD_POWER:
+    return "Power pad";
+  case PAD_SPACER:
+    return"Pad spacer";
+  case PAD_AREAIO:
+    return "Area IO";
+  case ENDCAP:
+    return "Endcap";
+  case FILL:
+    return "Fill";
+  case TAPCELL:
+    return "Tapcell";
+  case BUMP:
+    return "Bump";
+  case COVER:
+    return "Cover";
+  case ANTENNA:
+    return "Antenna";
+  case TIE:
+    return "Tie";
+  case LEF_OTHER:
+    return "Other";
+  case STD_CELL:
+    return "Standard cell";
+  case STD_BUFINV:
+    return "Buffer/inverter";
+  case STD_BUFINV_CLK_TREE:
+    return "Clock buffer/inverter";
+  case STD_BUFINV_TIMING_REPAIR:
+    return "Buffer/inverter from timing repair";
+  case STD_CLOCK_GATE:
+    return "Clock gate";
+  case STD_LEVEL_SHIFT:
+    return "Level shifter";
+  case STD_SEQUENTIAL:
+    return "Sequential";
+  case STD_PHYSICAL:
+    return "Physical";
+  case STD_COMBINATIONAL:
+    return "Combinational";
+  case STD_OTHER:
+    return "Other";
+  }
+
+  return "Unknown";
+}
+
+DbInstDescriptor::Type DbInstDescriptor::getInstanceType(odb::dbInst* inst) const
+{
+  odb::dbMaster* master = inst->getMaster();
+  const auto master_type = master->getType();
+  const auto source_type = inst->getSourceType();
+  if (master->isBlock()) {
+    return BLOCK;
+  } else if (master->isPad()) {
+    if (master_type == odb::dbMasterType::PAD_INPUT) {
+      return PAD_INPUT;
+    } else if (master_type == odb::dbMasterType::PAD_OUTPUT) {
+      return PAD_OUTPUT;
+    } else if (master_type == odb::dbMasterType::PAD_INOUT) {
+      return PAD_INOUT;
+    } else if (master_type == odb::dbMasterType::PAD_POWER) {
+      return PAD_POWER;
+    } else if (master_type == odb::dbMasterType::PAD_SPACER) {
+      return PAD_SPACER;
+    } else if (master_type == odb::dbMasterType::PAD_AREAIO) {
+      return PAD_AREAIO;
+    }
+    return PAD;
+  } else if (master->isEndCap()) {
+    return ENDCAP;
+  } else if (master->isFiller()) {
+    return FILL;
+  } else if (master_type == odb::dbMasterType::CORE_WELLTAP) {
+    return TAPCELL;
+  } else if (master->isCover()) {
+    if (master_type == odb::dbMasterType::COVER_BUMP) {
+      return BUMP;
+    } else {
+      return COVER;
+    }
+  } else if (master_type == odb::dbMasterType::CORE_ANTENNACELL) {
+    return ANTENNA;
+  } else if (master_type == odb::dbMasterType::CORE_TIEHIGH || master_type == odb::dbMasterType::CORE_TIELOW) {
+    return TIE;
+  } else if (source_type == odb::dbSourceType::DIST) {
+    return LEF_OTHER;
+  }
+
+  sta::dbNetwork* network = sta_->getDbNetwork();
+  sta::Cell* cell = network->dbToSta(master);
+  if (cell == nullptr) {
+    return LEF_OTHER;
+  }
+  sta::LibertyCell* lib_cell = network->libertyCell(cell);
+  if (lib_cell == nullptr) {
+    if (master->isCore()) {
+      return STD_CELL;
+    }
+    // default to use overall instance setting if there is no liberty cell and it's not a core cell.
+    return STD_OTHER;
+  }
+
+  if (lib_cell->isInverter() || lib_cell->isBuffer()) {
+    if (source_type == odb::dbSourceType::TIMING) {
+      for (auto* iterm : inst->getITerms()) {
+        // look through iterms and check for clock nets
+        auto* net = iterm->getNet();
+        if (net == nullptr) {
+          continue;
+        }
+        if (net->getSigType() == odb::dbSigType::CLOCK) {
+          return STD_BUFINV_CLK_TREE;
+        }
+      }
+      return STD_BUFINV_TIMING_REPAIR;
+    } else {
+      return STD_BUFINV;
+    }
+  } else if (lib_cell->isClockGate()) {
+    return STD_CLOCK_GATE;
+  } if (lib_cell->isLevelShifter()) {
+    return STD_LEVEL_SHIFT;
+  } else if (lib_cell->hasSequentials()) {
+    return STD_SEQUENTIAL;
+  } else if (lib_cell->portCount() == 0) {
+    return STD_PHYSICAL; // generic physical
+  } else {
+    // not anything else, so combinational
+    return STD_COMBINATIONAL;
+  }
 }
 
 //////////////////////////////////////////////////
@@ -936,13 +1115,13 @@ void DbNetDescriptor::highlight(std::any object,
     }
   }
 
-  odb::Rect rect;
   odb::dbWire* wire = net->getWire();
   if (wire) {
     if (sink_object != nullptr) {
       drawPathSegment(net, sink_object, painter);
     }
 
+    odb::Rect rect;
     odb::dbWireShapeItr it;
     it.begin(wire);
     odb::dbShape shape;
@@ -1015,8 +1194,13 @@ void DbNetDescriptor::highlight(std::any object,
   // Draw special (i.e. geometric) routing
   for (auto swire : net->getSWires()) {
     for (auto sbox : swire->getWires()) {
-      sbox->getBox(rect);
-      painter.drawGeomShape(sbox->getGeomShape());
+      if (sbox->getDirection() == odb::dbSBox::OCTILINEAR) {
+        painter.drawOctagon(sbox->getOct());
+      } else {
+        odb::Rect rect;
+        sbox->getBox(rect);
+        painter.drawRect(rect);
+      }
     }
   }
 }
@@ -1667,15 +1851,154 @@ Descriptor::Properties DbTechLayerDescriptor::getProperties(std::any object) con
 {
   auto layer = std::any_cast<odb::dbTechLayer*>(object);
   Properties props({{"Direction", layer->getDirection().getString()},
-                    {"Minimum width", Property::convert_dbu(layer->getWidth(), true)},
-                    {"Minimum spacing", Property::convert_dbu(layer->getSpacing(), true)}});
+                    {"Type", layer->getType().getString()}});
+  if (layer->getLef58Type() != odb::dbTechLayer::NONE) {
+    props.push_back({"LEF58 type", layer->getLef58TypeString()});
+  }
+  props.push_back({"Layer number", layer->getNumber()});
+  if (layer->getType() == odb::dbTechLayerType::ROUTING) {
+    props.push_back({"Routing layer", layer->getRoutingLevel()});
+  }
+  if (layer->getWidth() != 0) {
+    props.push_back({"Default width", Property::convert_dbu(layer->getWidth(), true)});
+  }
+  if (layer->getMinWidth() != 0) {
+    props.push_back({"Minimum width", Property::convert_dbu(layer->getMinWidth(), true)});
+  }
+  if (layer->hasMaxWidth()) {
+    props.push_back({"Max width", Property::convert_dbu(layer->getMaxWidth(), true)});
+  }
+  if (layer->getSpacing() != 0) {
+    props.push_back({"Minimum spacing", Property::convert_dbu(layer->getSpacing(), true)});
+  }
   const char* micron = "\u03BC";
+  if (layer->hasArea()) {
+    props.push_back({"Minimum area", convertUnits(layer->getArea() * 1e-6 * 1e-6, true) + "m\u00B2"}); // m^2
+  }
   if (layer->getResistance() != 0.0) {
     props.push_back({"Resistance", convertUnits(layer->getResistance()) + "\u03A9/sq"}); // ohm/sq
   }
   if (layer->getCapacitance() != 0.0) {
     props.push_back({"Capacitance", convertUnits(layer->getCapacitance() * 1e-12) + "F/" + micron + "m\u00B2"}); // F/um^2
   }
+  if (layer->getEdgeCapacitance() != 0.0) {
+    props.push_back({"Edge capacitance", convertUnits(layer->getEdgeCapacitance() * 1e-12) + "F/" + micron + "m"}); // F/um
+  }
+
+  for (auto* width_table : layer->getTechLayerWidthTableRules()) {
+    std::string title = "Width table";
+    if (width_table->isWrongDirection()) {
+      title += " - wrong direction";
+    }
+    if (width_table->isOrthogonal()) {
+      title += " - orthogonal";
+    }
+
+    std::vector<std::any> widths;
+    for (auto width : width_table->getWidthTable()) {
+      widths.push_back(Property::convert_dbu(width, true));
+    }
+    props.push_back({title, widths});
+  }
+
+  PropertyList cutclasses;
+  for (auto* cutclass : layer->getTechLayerCutClassRules()) {
+    std::string text = Property::convert_dbu(cutclass->getWidth(), true) + " x ";
+    if (cutclass->isLengthValid()) {
+      text += Property::convert_dbu(cutclass->getLength(), true);
+    } else {
+      text += Property::convert_dbu(cutclass->getWidth(), true);
+    }
+
+    if (cutclass->isCutsValid()) {
+      text += " - " + std::to_string(cutclass->getNumCuts()) + " cuts";
+    }
+
+    cutclasses.emplace_back(cutclass->getName(), text);
+  }
+  if (!cutclasses.empty()) {
+    props.push_back({"Cut classes", cutclasses});
+  }
+
+  PropertyList cut_enclosures;
+  for (auto* enc_rule : layer->getTechLayerCutEnclosureRules()) {
+    std::string text = Property::convert_dbu(enc_rule->getMinWidth(), true);
+
+    if (enc_rule->getCutClass() != nullptr) {
+      text += " - ";
+      text += enc_rule->getCutClass()->getName();
+    }
+    if (enc_rule->isAbove()) {
+      text += " - above";
+    }
+    if (enc_rule->isBelow()) {
+      text += " - below";
+    }
+
+    const std::string enc0 = Property::convert_dbu(enc_rule->getFirstOverhang(), true);
+    const std::string enc1 = Property::convert_dbu(enc_rule->getSecondOverhang(), true);
+    std::string enclosure;
+    switch (enc_rule->getType()) {
+    case odb::dbTechLayerCutEnclosureRule::DEFAULT:
+      enclosure = enc0 + " x " + enc1;
+      break;
+    case odb::dbTechLayerCutEnclosureRule::EOL:
+      enclosure = "EOL: " + enc0 + " x " + enc1;
+      break;
+    case odb::dbTechLayerCutEnclosureRule::ENDSIDE:
+      enclosure = "End: " + enc0 + " x Side: " + enc1;
+      break;
+    case odb::dbTechLayerCutEnclosureRule::HORZ_AND_VERT:
+      enclosure = "Horizontal: " + enc0 + " x Vertical: " + enc1;
+      break;
+    }
+
+    cut_enclosures.emplace_back(text, enclosure);
+  }
+  if (!cut_enclosures.empty()) {
+    props.push_back({"Cut enclosures", cut_enclosures});
+  }
+
+  PropertyList minimum_cuts;
+  for (auto* min_cut_rule : layer->getMinCutRules()) {
+    uint numcuts;
+    uint rule_width;
+    min_cut_rule->getMinimumCuts(numcuts, rule_width);
+
+    std::string text = Property::convert_dbu(rule_width, true);
+
+    if (min_cut_rule->isAboveOnly()) {
+      text += " - above only";
+    }
+    if (min_cut_rule->isBelowOnly()) {
+      text += " - below only";
+    }
+
+    minimum_cuts.emplace_back(text, static_cast<int>(numcuts));
+  }
+  if (!minimum_cuts.empty()) {
+    props.push_back({"Minimum cuts", minimum_cuts});
+  }
+
+  PropertyList lef58_minimum_cuts;
+  for (auto* min_cut_rule : layer->getTechLayerMinCutRules()) {
+    std::string text = Property::convert_dbu(min_cut_rule->getWidth(), true);
+
+    if (min_cut_rule->isFromAbove()) {
+      text += " - from above";
+    }
+    if (min_cut_rule->isFromBelow()) {
+      text += " - from below";
+    }
+
+    for (const auto& [cutclass, min_cut] : min_cut_rule->getCutClassCutsMap()) {
+      lef58_minimum_cuts.emplace_back(text + " - " + cutclass, min_cut);
+    }
+  }
+  if (!lef58_minimum_cuts.empty()) {
+    props.push_back({"LEF58 minimum cuts", lef58_minimum_cuts});
+  }
+
   return props;
 }
 
@@ -1819,6 +2142,381 @@ bool DbItermAccessPointDescriptor::getAllObjects(SelectionSet& objects) const
     }
   }
   return true;
+}
+
+//////////////////////////////////////////////////
+
+DbGroupDescriptor::DbGroupDescriptor(odb::dbDatabase* db) :
+    db_(db)
+{
+}
+
+std::string DbGroupDescriptor::getName(std::any object) const
+{
+  auto* group = std::any_cast<odb::dbGroup*>(object);
+  return group->getName();
+}
+
+std::string DbGroupDescriptor::getTypeName() const
+{
+  return "Group";
+}
+
+bool DbGroupDescriptor::getBBox(std::any object, odb::Rect& bbox) const
+{
+  auto* group = std::any_cast<odb::dbGroup*>(object);
+  if (group->hasBox()) {
+    bbox = group->getBox();
+    return true;
+  }
+
+  return false;
+}
+
+void DbGroupDescriptor::highlight(std::any object,
+                                  Painter& painter,
+                                  void* additional_data) const
+{
+  auto* group = std::any_cast<odb::dbGroup*>(object);
+  auto* inst_descriptor = Gui::get()->getDescriptor<odb::dbInst*>();
+  for (auto* inst : group->getInsts()) {
+    inst_descriptor->highlight(inst, painter, nullptr);
+  }
+  for (auto* subgroup : group->getGroups()) {
+    highlight(subgroup, painter, nullptr);
+  }
+}
+
+Descriptor::Properties DbGroupDescriptor::getProperties(std::any object) const
+{
+  auto* group = std::any_cast<odb::dbGroup*>(object);
+
+  auto* gui = Gui::get();
+
+  Properties props;
+  auto* parent = group->getParentGroup();
+  if (parent != nullptr) {
+    props.push_back({"Parent", gui->makeSelected(parent)});
+  }
+
+  SelectionSet groups;
+  for (auto* subgroup : group->getGroups()) {
+    groups.insert(gui->makeSelected(subgroup));
+  }
+  if (!groups.empty()) {
+    props.push_back({"Groups", groups});
+  }
+
+  SelectionSet insts;
+  for (auto* inst : group->getInsts()) {
+    insts.insert(gui->makeSelected(inst));
+  }
+  props.push_back({"Instances", insts});
+
+  props.push_back({"Group Type", group->getType().getString()});
+
+  SelectionSet pwr;
+  for (auto* net : group->getPowerNets()) {
+    pwr.insert(gui->makeSelected(net));
+  }
+  props.push_back({"Power Nets", pwr});
+
+  SelectionSet gnd;
+  for (auto* net : group->getGroundNets()) {
+    gnd.insert(gui->makeSelected(net));
+  }
+  props.push_back({"Ground Nets", gnd});
+
+  return props;
+}
+
+Selected DbGroupDescriptor::makeSelected(std::any object,
+                                         void* additional_data) const
+{
+  if (auto group = std::any_cast<odb::dbGroup*>(&object)) {
+    return Selected(*group, this, additional_data);
+  }
+  return Selected();
+}
+
+bool DbGroupDescriptor::lessThan(std::any l, std::any r) const
+{
+  auto l_layer = std::any_cast<odb::dbGroup*>(l);
+  auto r_layer = std::any_cast<odb::dbGroup*>(r);
+  return l_layer->getId() < r_layer->getId();
+}
+
+bool DbGroupDescriptor::getAllObjects(SelectionSet& objects) const
+{
+  auto* chip = db_->getChip();
+  if (chip == nullptr) {
+    return false;
+  }
+  auto* block = chip->getBlock();
+  if (block == nullptr) {
+    return false;
+  }
+
+  for (auto* group : block->getGroups()) {
+    objects.insert(makeSelected(group, nullptr));
+  }
+  return true;
+}
+
+//////////////////////////////////////////////////
+
+DbRegionDescriptor::DbRegionDescriptor(odb::dbDatabase* db) :
+    db_(db)
+{
+}
+
+std::string DbRegionDescriptor::getName(std::any object) const
+{
+  auto* region = std::any_cast<odb::dbRegion*>(object);
+  return region->getName();
+}
+
+std::string DbRegionDescriptor::getTypeName() const
+{
+  return "Region";
+}
+
+bool DbRegionDescriptor::getBBox(std::any object, odb::Rect& bbox) const
+{
+  auto* region = std::any_cast<odb::dbRegion*>(object);
+  auto boxes = region->getBoundaries();
+  if (boxes.empty()) {
+    return false;
+  }
+  bbox.mergeInit();
+  for (auto* box : boxes) {
+    odb::Rect box_rect;
+    box->getBox(box_rect);
+    bbox.merge(box_rect);
+  }
+  return true;
+}
+
+void DbRegionDescriptor::highlight(std::any object,
+                                  Painter& painter,
+                                  void* additional_data) const
+{
+  auto* region = std::any_cast<odb::dbRegion*>(object);
+  for (auto* child : region->getChildren()) {
+    highlight(child, painter, nullptr);
+  }
+
+  auto* inst_descriptor = Gui::get()->getDescriptor<odb::dbInst*>();
+  for (auto* inst : region->getRegionInsts()) {
+    inst_descriptor->highlight(inst, painter, nullptr);
+  }
+}
+
+Descriptor::Properties DbRegionDescriptor::getProperties(std::any object) const
+{
+  auto* region = std::any_cast<odb::dbRegion*>(object);
+
+  auto* gui = Gui::get();
+
+  Properties props({{"Region Type", region->getRegionType().getString()}});
+  auto* parent = region->getParent();
+  if (parent != nullptr) {
+    props.push_back({"Parent", gui->makeSelected(parent)});
+  }
+
+  SelectionSet children;
+  for (auto* child : region->getChildren()) {
+    children.insert(gui->makeSelected(child));
+  }
+  if (!children.empty()) {
+    props.push_back({"Children", children});
+  }
+
+  SelectionSet insts;
+  for (auto* inst : region->getRegionInsts()) {
+    insts.insert(gui->makeSelected(inst));
+  }
+  props.push_back({"Instances", insts});
+
+  return props;
+}
+
+Selected DbRegionDescriptor::makeSelected(std::any object,
+                                         void* additional_data) const
+{
+  if (auto region = std::any_cast<odb::dbRegion*>(&object)) {
+    return Selected(*region, this, additional_data);
+  }
+  return Selected();
+}
+
+bool DbRegionDescriptor::lessThan(std::any l, std::any r) const
+{
+  auto l_layer = std::any_cast<odb::dbRegion*>(l);
+  auto r_layer = std::any_cast<odb::dbRegion*>(r);
+  return l_layer->getId() < r_layer->getId();
+}
+
+bool DbRegionDescriptor::getAllObjects(SelectionSet& objects) const
+{
+  auto* chip = db_->getChip();
+  if (chip == nullptr) {
+    return false;
+  }
+  auto* block = chip->getBlock();
+  if (block == nullptr) {
+    return false;
+  }
+
+  for (auto* region : block->getRegions()) {
+    objects.insert(makeSelected(region, nullptr));
+  }
+  return true;
+}
+
+//////////////////////////////////////////////////
+
+DbModuleDescriptor::DbModuleDescriptor(odb::dbDatabase* db) :
+    db_(db)
+{
+}
+
+std::string DbModuleDescriptor::getShortName(std::any object) const
+{
+  auto* module = std::any_cast<odb::dbModule*>(object);
+  return module->getName();
+}
+
+std::string DbModuleDescriptor::getName(std::any object) const
+{
+  auto* module = std::any_cast<odb::dbModule*>(object);
+  return module->getHierarchicalName();
+}
+
+std::string DbModuleDescriptor::getTypeName() const
+{
+  return "Module";
+}
+
+bool DbModuleDescriptor::getBBox(std::any object, odb::Rect& bbox) const
+{
+  auto* module = std::any_cast<odb::dbModule*>(object);
+  bbox.mergeInit();
+  for (auto* child : module->getChildren()) {
+    odb::Rect child_bbox;
+    if (getBBox(child->getMaster(), child_bbox)) {
+      bbox.merge(child_bbox);
+    }
+  }
+
+  for (auto* inst : module->getInsts()) {
+    auto* box = inst->getBBox();
+    odb::Rect box_rect;
+    box->getBox(box_rect);
+    bbox.merge(box_rect);
+  }
+
+  return !bbox.isInverted();
+}
+
+void DbModuleDescriptor::highlight(std::any object,
+                                  Painter& painter,
+                                  void* additional_data) const
+{
+  auto* module = std::any_cast<odb::dbModule*>(object);
+
+  auto* inst_descriptor = Gui::get()->getDescriptor<odb::dbInst*>();
+  for (auto* inst : module->getInsts()) {
+    inst_descriptor->highlight(inst, painter, nullptr);
+  }
+
+  const int level_alpha_scale = 2;
+  painter.saveState();
+  auto pen_color = painter.getPenColor();
+  pen_color.a /= level_alpha_scale;
+  painter.setPen(pen_color, true);
+  for (auto* children : module->getChildren()) {
+    highlight(children->getMaster(), painter, nullptr);
+  }
+  painter.restoreState();
+}
+
+Descriptor::Properties DbModuleDescriptor::getProperties(std::any object) const
+{
+  auto* module = std::any_cast<odb::dbModule*>(object);
+  auto* mod_inst = module->getModInst();
+
+  auto* gui = Gui::get();
+
+  Properties props;
+  if (mod_inst != nullptr) {
+    auto* parent = mod_inst->getParent();
+    if (parent != nullptr) {
+      props.push_back({"Parent", gui->makeSelected(parent)});
+    }
+
+    auto* group = mod_inst->getGroup();
+    if (group != nullptr) {
+      props.push_back({"Group", gui->makeSelected(group)});
+    }
+  }
+
+  SelectionSet children;
+  for (auto* child : module->getChildren()) {
+    children.insert(gui->makeSelected(child->getMaster()));
+  }
+  if (!children.empty()) {
+    props.push_back({"Children", children});
+  }
+
+  SelectionSet insts;
+  for (auto* inst : module->getInsts()) {
+    insts.insert(gui->makeSelected(inst));
+  }
+  props.push_back({"Instances", insts});
+
+  return props;
+}
+
+Selected DbModuleDescriptor::makeSelected(std::any object,
+                                         void* additional_data) const
+{
+  if (auto module = std::any_cast<odb::dbModule*>(&object)) {
+    return Selected(*module, this, additional_data);
+  }
+  return Selected();
+}
+
+bool DbModuleDescriptor::lessThan(std::any l, std::any r) const
+{
+  auto l_layer = std::any_cast<odb::dbModule*>(l);
+  auto r_layer = std::any_cast<odb::dbModule*>(r);
+  return l_layer->getId() < r_layer->getId();
+}
+
+bool DbModuleDescriptor::getAllObjects(SelectionSet& objects) const
+{
+  auto* chip = db_->getChip();
+  if (chip == nullptr) {
+    return false;
+  }
+  auto* block = chip->getBlock();
+  if (block == nullptr) {
+    return false;
+  }
+
+  getModules(block->getTopModule(), objects);
+
+  return true;
+}
+
+void DbModuleDescriptor::getModules(odb::dbModule* module, SelectionSet& objects) const
+{
+  objects.insert(makeSelected(module, nullptr));
+
+  for (auto* mod_inst : module->getChildren()) {
+    getModules(mod_inst->getMaster(), objects);
+  }
 }
 
 }  // namespace gui

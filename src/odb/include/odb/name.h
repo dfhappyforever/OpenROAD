@@ -36,10 +36,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "atypes.h"
 #include "misc_global.h"
 #include "util.h"
 
+namespace odb {
 class Ath__nameBucket
 {
  private:
@@ -80,3 +80,5 @@ class Ath__nameTable
                  uint exitFlag = 0,
                  int* nn = 0);
 };
+
+}  // namespace odb

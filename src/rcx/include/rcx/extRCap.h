@@ -74,6 +74,11 @@ namespace rcx {
 
 class extMeasure;
 
+using odb::Ath__array1D;
+using odb::Ath__gridTable;
+using odb::AthPool;
+using odb::Darr;
+using odb::uint;
 using utl::Logger;
 
 class ext2dBox  // assume cross-section on the z-direction
@@ -2255,7 +2260,6 @@ class extMain
 
   // void extCompute(void *a, void *b, int c);
 
-  uint makeGuiBoxes(uint extGuiBoxType);
   uint setupSearchDb(const char* bbox, uint debug, odb::ZInterface* Interface);
   odb::ZPtr<odb::ISdb> getCcSdb();
   odb::ZPtr<odb::ISdb> getNetSdb();

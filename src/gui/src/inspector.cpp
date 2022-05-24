@@ -177,7 +177,9 @@ QStandardItem* SelectedItemModel::makeList(QStandardItem* name_item, const Itera
     name_item->appendRow({index_item, selected_item});
   }
 
-  return makeItem(QString::number(index) + " items");
+  QString items = QString::number(index) + " items";
+
+  return makeItem(items);
 }
 
 template<typename Iterator>
@@ -188,7 +190,9 @@ QStandardItem* SelectedItemModel::makePropertyList(QStandardItem* name_item, con
     name_item->appendRow({makeItem(name, true), makeItem(value)});
   }
 
-  return makeItem(QString::number(name_item->rowCount()) + " items");
+  QString items = QString::number(name_item->rowCount()) + " items";
+
+  return makeItem(items);
 }
 
 void SelectedItemModel::makeItemEditor(const std::string& name,
@@ -730,6 +734,11 @@ void Inspector::inspect(const Selected& object)
     deselect_action_();
   }
 
+  // check if object is part of history, otherwise delete history
+  if (std::find(navigation_history_.begin(), navigation_history_.end(), object) == navigation_history_.end()) {
+    navigation_history_.clear();
+  }
+
   selection_ = object;
   emit selection(object);
 
@@ -805,6 +814,13 @@ void Inspector::loadActions()
       return selection_;
     }});
   }
+
+  if (!navigation_history_.empty()) {
+    makeAction({"Navigate back", [this]() -> Selected {
+      navigateBack();
+      return selection_;
+    }});
+  }
 }
 
 void Inspector::makeAction(const Descriptor::Action& action)
@@ -815,7 +831,8 @@ void Inspector::makeAction(const Descriptor::Action& action)
     {"Remove from highlight", ":/highlight_off.png"},
     {"Add to highlight", ":/highlight_on.png"},
     {"Focus", ":/focus.png"},
-    {"De-focus", ":/defocus.png"}
+    {"De-focus", ":/defocus.png"},
+    {"Navigate back", ":/undo.png"}
   };
   std::vector<std::pair<std::string, QString>> symbol_replacements{
     {"Fanin Cone", "\u25B7"},
@@ -871,6 +888,11 @@ void Inspector::indexClicked()
   QStandardItem* item = model_->itemFromIndex(clicked_index_);
   auto new_selected = item->data(EditorItemDelegate::selected_).value<Selected>();
   if (new_selected) {
+    if (navigation_history_.empty()) {
+      // add starting object
+      navigation_history_.push_back(selection_);
+    }
+    navigation_history_.push_back(new_selected);
     // If shift is help add to the list instead of replacing list
     if (qGuiApp->keyboardModifiers() & Qt::ShiftModifier) {
       emit addSelected(new_selected);
@@ -1004,6 +1026,29 @@ bool Inspector::isHighlighted(const Selected& selected)
   }
 
   return false;
+}
+
+void Inspector::navigateBack()
+{
+  if (navigation_history_.empty()) {
+    return;
+  }
+
+  Selected next;
+  if (navigation_history_.size() == 1) {
+    next = navigation_history_.back();
+    navigation_history_.clear();
+  } else {
+    next = *(navigation_history_.end() - 2);
+
+    if (navigation_history_.size() == 2) {
+      navigation_history_.clear();
+    } else {
+      navigation_history_.erase(navigation_history_.end() - 1);
+    }
+  }
+
+  emit inspect(next);
 }
 
 ////////////

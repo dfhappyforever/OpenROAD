@@ -38,6 +38,8 @@
 
 namespace rcx {
 
+using namespace odb;
+
 void extSpef::initSearchForNets() {
   uint W[16];
   uint S[16];
@@ -278,9 +280,6 @@ bool extSpef::readNodeCoords(uint cpos) {
   _xCoordTable->add(x);
   _yCoordTable->add(y);
   uint level = 0;
-  //	if (_NsLayer && _parser->getWordCnt() > cpos + 3)
-  //		level = _tech->findLayer(_parser->get(cpos +
-  // 3))->getRoutingLevel();
   _levelTable->add(level);
   return true;
 }
@@ -471,6 +470,8 @@ void extSpef::searchDealloc() { _search->dealloc(); }
 
 }  // namespace rcx
 
+namespace odb {
+
 void Ath__grid::dealloc() {
   for (uint ii = 0; ii <= _searchHiTrack; ii++) {
     Ath__track* btrack = _trackTable[ii];
@@ -497,3 +498,5 @@ void Ath__gridTable::dealloc() {
     }
   }
 }
+
+}  // namespace odb

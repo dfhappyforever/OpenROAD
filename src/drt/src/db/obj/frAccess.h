@@ -33,6 +33,7 @@
 
 #include "db/infra/frPoint.h"
 #include "db/obj/frBlockObject.h"
+#include "frShape.h"
 
 namespace fr {
 class frViaDef;
@@ -49,9 +50,11 @@ class frAccessPoint : public frBlockObject
         viaDefs_(),
         typeL_(frAccessPointEnum::OnGrid),
         typeH_(frAccessPointEnum::OnGrid),
-        aps_(nullptr)
+        aps_(nullptr),
+        pathSegs_()
   {
   }
+  frAccessPoint() : frAccessPoint({0, 0}, 0) {}
   // getters
   void getPoint(Point& in) const { in = point_; }
   const Point& getPoint() const { return point_; }
@@ -114,6 +117,10 @@ class frAccessPoint : public frBlockObject
   {
     return viaDefs_[numCut - 1];
   }
+  const std::vector<std::vector<frViaDef*>>& getAllViaDefs() const
+  {
+    return viaDefs_;
+  }
   // e.g., getViaDef()     --> get best one-cut viadef
   // e.g., getViaDef(1)    --> get best one-cut viadef
   // e.g., getViaDef(2)    --> get best two-cut viadef
@@ -134,6 +141,7 @@ class frAccessPoint : public frBlockObject
   }
   // setters
   void setPoint(const Point& in) { point_ = in; }
+  void setLayer(const frLayerNum& layerNum) { layerNum_ = layerNum; }
   void setAccess(const frDirEnum& dir, bool isValid = true)
   {
     switch (dir) {
@@ -173,7 +181,11 @@ class frAccessPoint : public frBlockObject
   frBlockObjectEnum typeId() const override { return frcAccessPoint; }
   frCoord x() const { return point_.x(); }
   frCoord y() const { return point_.y(); }
-
+  
+  void addPathSeg(frPathSeg ps) {
+      pathSegs_.push_back(std::move(ps));
+  }
+  std::vector<frPathSeg>& getPathSegs() { return pathSegs_;}
  private:
   Point point_;
   frLayerNum layerNum_;
@@ -183,6 +195,7 @@ class frAccessPoint : public frBlockObject
   frAccessPointEnum typeL_;
   frAccessPointEnum typeH_;
   frPinAccess* aps_;
+  std::vector<frPathSeg> pathSegs_;
 
   template <class Archive>
   void serialize(Archive& ar, const unsigned int version)
@@ -195,9 +208,8 @@ class frAccessPoint : public frBlockObject
     (ar) & typeL_;
     (ar) & typeH_;
     (ar) & aps_;
+    (ar) & pathSegs_;
   }
-
-  frAccessPoint() = default;  // for serialization
 
   friend class boost::serialization::access;
 };

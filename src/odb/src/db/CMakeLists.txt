@@ -49,8 +49,6 @@ add_library(odb
     dbWirePathItr.cpp 
     dbTarget.cpp 
     dbTargetItr.cpp 
-    test_wire.cpp 
-    test_wire2.cpp 
     dbTechNonDefaultRule.cpp 
     dbTechLayerRule.cpp 
     dbCapNode.cpp 
@@ -106,6 +104,9 @@ add_library(odb
     dbTechLayerCutSpacingTableDefRule.cpp
     dbTechLayerCutEnclosureRule.cpp
     dbTechLayerEolExtensionRule.cpp
+    dbTechLayerArraySpacingRule.cpp
+    dbTechLayerWidthTableRule.cpp
+    dbTechLayerMinCutRule.cpp
     dbModule.cpp
     dbModInst.cpp
     dbGroup.cpp
@@ -139,7 +140,6 @@ target_link_libraries(odb
         lefin
         lefout
         tm
-        zlib 
         zutil
         utl
         ${TCL_LIBRARY}

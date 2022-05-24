@@ -44,6 +44,7 @@
 #include <vector>
 
 #include "db.h"
+#include "dbDescriptors.h"
 #include "displayControls.h"
 
 #include "db_sta/dbSta.hh"
@@ -195,8 +196,8 @@ QVariant DisplayControlModel::data(const QModelIndex& index, int role) const
         // direction
         add_prop("Direction", information);
 
-        // min width
-        add_prop("Minimum width", information);
+        // min path width
+        add_prop("Default width", information);
 
         // min spacing
         add_prop("Minimum spacing", information);
@@ -251,6 +252,7 @@ DisplayControls::DisplayControls(QWidget* parent)
       db_(nullptr),
       logger_(nullptr),
       sta_(nullptr),
+      inst_descriptor_(nullptr),
       tech_inited_(false)
 {
   setObjectName("layers");  // for settings
@@ -334,7 +336,22 @@ DisplayControls::DisplayControls(QWidget* parent)
   toggleParent(instances_.stdcells);
 
   makeLeafItem(instances_.blocks, "Macro", instances_parent, Qt::Checked, true);
-  makeLeafItem(instances_.pads, "Pad", instances_parent, Qt::Checked, true);
+
+  auto pad_parent = makeParentItem(
+      instances_.pads,
+      "Pads",
+      instances_parent,
+      Qt::Checked,
+      true);
+  makeLeafItem(pad_instances_.input, "Input", pad_parent, Qt::Checked, true);
+  makeLeafItem(pad_instances_.output, "Output", pad_parent, Qt::Checked, true);
+  makeLeafItem(pad_instances_.input, "Inout", pad_parent, Qt::Checked, true);
+  makeLeafItem(pad_instances_.power, "Power", pad_parent, Qt::Checked, true);
+  makeLeafItem(pad_instances_.spacer, "Spacer", pad_parent, Qt::Checked, true);
+  makeLeafItem(pad_instances_.areaio, "Area IO", pad_parent, Qt::Checked, true);
+  makeLeafItem(pad_instances_.other, "Other", pad_parent, Qt::Checked, true);
+  toggleParent(instances_.pads);
+
   auto phys_parent = makeParentItem(
       instances_.physical,
       "Physical",
@@ -348,6 +365,7 @@ DisplayControls::DisplayControls(QWidget* parent)
   makeLeafItem(physical_instances_.antenna, "Antenna", phys_parent, Qt::Checked, true);
   makeLeafItem(physical_instances_.cover, "Cover", phys_parent, Qt::Checked, true);
   makeLeafItem(physical_instances_.bump, "Bump", phys_parent, Qt::Checked, true);
+  makeLeafItem(physical_instances_.other, "Other", phys_parent, Qt::Checked, true);
   toggleParent(instances_.physical);
   toggleParent(instance_group_);
 
@@ -412,6 +430,7 @@ DisplayControls::DisplayControls(QWidget* parent)
   makeLeafItem(misc_.regions, "Regions", misc, Qt::Checked);
   makeLeafItem(misc_.detailed, "Detailed view", misc, Qt::Unchecked);
   makeLeafItem(misc_.selected, "Highlight selected", misc, Qt::Checked);
+  makeLeafItem(misc_.module, "Module view", misc, Qt::Unchecked);
   toggleParent(misc_group_);
 
   checkLiberty();
@@ -1092,6 +1111,11 @@ void DisplayControls::setSTA(sta::dbSta* sta)
   checkLiberty();
 }
 
+void DisplayControls::setDBInstDescriptor(DbInstDescriptor* desciptor)
+{
+  inst_descriptor_ = desciptor;
+}
+
 QStandardItem* DisplayControls::makeParentItem(
     ModelRow& row,
     const QString& text,
@@ -1263,72 +1287,62 @@ bool DisplayControls::isInstanceVisible(odb::dbInst* inst)
 
 const DisplayControls::ModelRow* DisplayControls::getInstRow(odb::dbInst* inst) const
 {
-  dbMaster* master = inst->getMaster();
-  const dbMasterType master_type = master->getType();
-  const dbSourceType source_type = inst->getSourceType();
-  if (master->isBlock()) {
+  switch (inst_descriptor_->getInstanceType(inst)) {
+  case DbInstDescriptor::BLOCK:
     return &instances_.blocks;
-  } else if (master->isPad()) {
-    return &instances_.pads;
-  } else if (master->isEndCap()) {
+  case DbInstDescriptor::PAD:
+    return &pad_instances_.other;
+  case DbInstDescriptor::PAD_INPUT:
+    return &pad_instances_.input;
+  case DbInstDescriptor::PAD_OUTPUT:
+    return &pad_instances_.output;
+  case DbInstDescriptor::PAD_INOUT:
+    return &pad_instances_.inout;
+  case DbInstDescriptor::PAD_POWER:
+    return &pad_instances_.power;
+  case DbInstDescriptor::PAD_SPACER:
+    return &pad_instances_.spacer;
+  case DbInstDescriptor::PAD_AREAIO:
+    return &pad_instances_.areaio;
+  case DbInstDescriptor::ENDCAP:
     return &physical_instances_.endcap;
-  } else if (master->isFiller()) {
+  case DbInstDescriptor::FILL:
     return &physical_instances_.fill;
-  } else if (master_type == dbMasterType::CORE_WELLTAP) {
+  case DbInstDescriptor::TAPCELL:
     return &physical_instances_.tap;
-  } else if (master->isCover()) {
-    if (master_type == dbMasterType::COVER_BUMP) {
-      return &physical_instances_.bump;
-    } else {
-      return &physical_instances_.cover;
-    }
-  } else if (master_type == dbMasterType::CORE_ANTENNACELL) {
+  case DbInstDescriptor::BUMP:
+    return &physical_instances_.bump;
+  case DbInstDescriptor::COVER:
+    return &physical_instances_.cover;
+  case DbInstDescriptor::ANTENNA:
     return &physical_instances_.antenna;
-  } else if (master_type == dbMasterType::CORE_TIEHIGH || master_type == dbMasterType::CORE_TIELOW) {
+  case DbInstDescriptor::TIE:
     return &physical_instances_.tie;
-  } else if (source_type == odb::dbSourceType::DIST) {
+  case DbInstDescriptor::LEF_OTHER:
+    return &physical_instances_.other;
+  case DbInstDescriptor::STD_CELL:
+    return &instances_.stdcells;
+  case DbInstDescriptor::STD_BUFINV:
+    return &bufinv_instances_.other;
+  case DbInstDescriptor::STD_BUFINV_CLK_TREE:
+    return &clock_tree_instances_.bufinv;
+  case DbInstDescriptor::STD_BUFINV_TIMING_REPAIR:
+    return &bufinv_instances_.timing;
+  case DbInstDescriptor::STD_CLOCK_GATE:
+    return &clock_tree_instances_.clock_gates;
+  case DbInstDescriptor::STD_LEVEL_SHIFT:
+    return &stdcell_instances_.level_shiters;
+  case DbInstDescriptor::STD_SEQUENTIAL:
+    return &stdcell_instances_.sequential;
+  case DbInstDescriptor::STD_PHYSICAL:
     return &instances_.physical;
-  }
-
-  sta::dbNetwork* network = sta_->getDbNetwork();
-  sta::Cell* cell = network->dbToSta(master);
-  sta::LibertyCell* lib_cell = network->libertyCell(cell);
-  if (lib_cell == nullptr) {
-    if (master->isCore()) {
-      return &instances_.stdcells;
-    }
-    // default to use overall instance setting if there is no liberty cell and it's not a core cell.
+  case DbInstDescriptor::STD_COMBINATIONAL:
+    return &stdcell_instances_.combinational;
+  case DbInstDescriptor::STD_OTHER:
     return &instance_group_;
   }
 
-  if (lib_cell->isInverter() || lib_cell->isBuffer()) {
-    if (source_type == odb::dbSourceType::TIMING) {
-      for (auto* iterm : inst->getITerms()) {
-        // look through iterms and check for clock nets
-        auto* net = iterm->getNet();
-        if (net == nullptr) {
-          continue;
-        }
-        if (net->getSigType() == odb::dbSigType::CLOCK) {
-          return &clock_tree_instances_.bufinv;
-        }
-      }
-      return &bufinv_instances_.timing;
-    } else {
-      return &bufinv_instances_.other;
-    }
-  } else if (lib_cell->isClockGate()) {
-    return &clock_tree_instances_.clock_gates;
-  } if (lib_cell->isLevelShifter()) {
-    return &stdcell_instances_.level_shiters;
-  } else if (lib_cell->hasSequentials()) {
-    return &stdcell_instances_.sequential;
-  } else if (lib_cell->portCount() == 0) {
-    return &instances_.physical; // generic physical
-  } else {
-    // not anything else, so combinational
-    return &stdcell_instances_.combinational;
-  }
+  return nullptr;
 }
 
 bool DisplayControls::isInstanceSelectable(odb::dbInst* inst)
@@ -1475,6 +1489,11 @@ bool DisplayControls::areAccessPointsVisible() const
 bool DisplayControls::areRegionsVisible() const
 {
   return isRowVisible(&misc_.regions);
+}
+
+bool DisplayControls::isModuleView() const
+{
+  return isRowVisible(&misc_.module);
 }
 
 void DisplayControls::registerRenderer(Renderer* renderer)
@@ -1759,6 +1778,11 @@ void DisplayControls::setOnlyVisibleLayers(const std::set<const odb::dbTechLayer
 void DisplayControls::postReadLiberty()
 {
   checkLiberty(true);
+}
+
+void DisplayControls::postReadDb()
+{
+  emit changed();
 }
 
 void DisplayControls::checkLiberty(bool assume_loaded)

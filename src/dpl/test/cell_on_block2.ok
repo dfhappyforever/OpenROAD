@@ -14,14 +14,13 @@
 [INFO ODB-0131]     Created 11904 components and 90887 component-terminals.
 [INFO ODB-0133]     Created 31790 nets and 67032 connections.
 [INFO ODB-0134] Finished DEF file: cell_on_block2.def
-[WARNING DPL-0011] Could not find power special net.
 Placement Analysis
 ---------------------------------
-total displacement     301910.3 u
+total displacement     301889.2 u
 average displacement       25.4 u
 max displacement         1568.3 u
 original HPWL         1353118.6 u
-legalized HPWL        1397297.0 u
+legalized HPWL        1397400.5 u
 delta HPWL                    3 %
 
 No differences found.

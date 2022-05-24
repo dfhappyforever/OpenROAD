@@ -518,11 +518,35 @@ class frPathSeg : public frShape
   bool isVertical() const { return begin_.x() == end_.x(); }
   frCoord high() const { return isVertical() ? end_.y() : end_.x(); }
   frCoord low() const { return isVertical() ? begin_.y() : begin_.x(); }
+  void setHigh(frCoord v) {
+      if (isVertical())
+          end_.setY(v);
+      else 
+          end_.setX(v);
+  }
+  void setLow(frCoord v) {
+      if (isVertical())
+          begin_.setY(v);
+      else 
+          begin_.setX(v);
+  }
+  bool isBeginTruncated() {
+    return style_.getBeginStyle() == frcTruncateEndStyle;
+  }
+  bool isEndTruncated() {
+    return style_.getEndStyle() == frcTruncateEndStyle;
+  }
   // setters
   void setPoints(const Point& beginIn, const Point& endIn)
   {
     begin_ = beginIn;
     end_ = endIn;
+  }
+  void setPoints_safe(const Point& beginIn, const Point& endIn) {
+      if (endIn < beginIn)
+            setPoints(endIn, beginIn);
+      else 
+          setPoints(beginIn, endIn);
   }
   void setStyle(const frSegStyle& styleIn)
   {

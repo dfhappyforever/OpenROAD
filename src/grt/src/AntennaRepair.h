@@ -65,7 +65,8 @@ namespace bgi = boost::geometry::index;
 
 namespace grt {
 
-typedef std::map<odb::dbNet*, std::vector<ant::VINFO>> AntennaViolations;
+typedef std::map<odb::dbNet*, std::vector<ant::ViolationInfo>>
+    AntennaViolations;
 
 class GlobalRouter;
 
@@ -110,6 +111,7 @@ class AntennaRepair
   void getFixedInstances(r_tree& fixed_insts);
   void setInstsPlacementStatus(odb::dbPlacementStatus placement_status);
   odb::Rect getInstRect(odb::dbInst* inst, odb::dbITerm* iterm);
+  bool diodeInRow(odb::Rect diode_rect);
 
   GlobalRouter* grouter_;
   ant::AntennaChecker* arc_;

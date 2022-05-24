@@ -32,12 +32,13 @@
 
 #pragma once
 
-#include <array>
 #include <string.h>
 
+#include <array>
 #include <string>
 
 #include "ZException.h"
+#include "dbObject.h"
 #include "map"
 #include "odb.h"
 #include "tuple"
@@ -55,8 +56,8 @@ class dbOStream
 
   void write_error()
   {
-    throw ZIOError(ferror(_f),
-                   "write failed on database stream; system io error: ");
+    throw ZException("write failed on database stream; system io error: (%s)",
+                     strerror(ferror(_f)));
   }
 
  public:
@@ -173,6 +174,14 @@ class dbOStream
     return *this;
   }
 
+  dbOStream& operator<<(dbObjectType c)
+  {
+    int n = fwrite(&c, sizeof(c), 1, _f);
+    if (n != 1)
+      write_error();
+    return *this;
+  }
+
   template <class T1, class T2>
   dbOStream& operator<<(const std::pair<T1, T2>& p)
   {
@@ -207,7 +216,7 @@ class dbOStream
   template <class T, std::size_t SIZE>
   dbOStream& operator<<(const std::array<T, SIZE>& a)
   {
-    for(auto& val : a) {
+    for (auto& val : a) {
       *this << val;
     }
     return *this;
@@ -247,8 +256,8 @@ class dbIStream
       throw ZException(
           "read failed on database stream (unexpected end-of-file encounted).");
     else
-      throw ZIOError(ferror(_f),
-                     "read failed on database stream; system io error: ");
+      throw ZException("read failed on database stream; system io error: (%s)",
+                       strerror(ferror(_f)));
   }
 
  public:
@@ -366,6 +375,14 @@ class dbIStream
         read_error();
     }
 
+    return *this;
+  }
+
+  dbIStream& operator>>(dbObjectType& c)
+  {
+    int n = fread(&c, sizeof(c), 1, _f);
+    if (n != 1)
+      read_error();
     return *this;
   }
 

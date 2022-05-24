@@ -314,8 +314,13 @@ int Gui::select(const std::string& type, const std::string& name_filter, bool fi
                              filter_case_sensitive ? Qt::CaseSensitive : Qt::CaseInsensitive,
                              QRegExp::WildcardUnix);
           auto remove_if = std::remove_if(selected_vector.begin(), selected_vector.end(),
-              [&reg_filter](auto sel) -> bool {
-                return !reg_filter.exactMatch(QString::fromStdString(sel.getName()));
+              [&name_filter, &reg_filter](auto sel) -> bool {
+                const std::string name = sel.getName();
+                if (name == name_filter) {
+                  // direct match, so don't remove
+                  return false;
+                }
+                return !reg_filter.exactMatch(QString::fromStdString(name));
               });
           selected_vector.erase(remove_if, selected_vector.end());
           // rebuild selectionset
@@ -952,9 +957,14 @@ int startGui(int& argc, char* argv[], Tcl_Interp* interp, const std::string& scr
 
   // Exit the app if someone chooses exit from the menu in the window
   QObject::connect(main_window, SIGNAL(exit()), &app, SLOT(quit()));
+  // Track the exit in case it originated during a script
+  bool exit_requested = false;
+  QObject::connect(main_window, &MainWindow::exit, [&]() {
+    exit_requested = true;
+  });
 
   // Hide the Gui if someone chooses hide from the menu in the window
-  QObject::connect(main_window, &gui::MainWindow::hide, [gui]() {
+  QObject::connect(main_window, &MainWindow::hide, [gui]() {
     gui->hideGui();
   });
 
@@ -999,7 +1009,7 @@ int startGui(int& argc, char* argv[], Tcl_Interp* interp, const std::string& scr
     }
   }
 
-  bool do_exec = interactive && !exception.hasException();
+  bool do_exec = interactive && !exception.hasException() && !exit_requested;
   // check if hide was called by script
   if (gui->isContinueAfterClose()) {
     do_exec = false;

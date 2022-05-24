@@ -144,6 +144,18 @@ proc set_macro_extension { args } {
   }
 }
 
+sta::define_cmd_args "set_pin_offset" { offset }
+
+proc set_pin_offset { args } {
+  if {[llength $args] == 1} {
+    lassign $args offset
+    sta::check_positive_integer "pin_offset" $offset
+    grt::set_pin_offset $offset
+  } else {
+    utl::error GRT 220 "Command set_pin_offset needs one argument: offset."
+  }
+}
+
 sta::define_cmd_args "set_global_routing_random" { [-seed seed] \
                                                    [-capacities_perturbation_percentage percent] \
                                                    [-perturbation_amount value]
@@ -296,7 +308,7 @@ proc draw_route_guides { args } {
   sta::parse_key_args "draw_route_guides" args \
                  keys {} \
                  flags {-show_pin_locations}
-  sta::check_argc_eq1 "repair_antennas" $args
+  sta::check_argc_eq1 "draw_route_guides" $args
   set net_names [lindex $args 0]
   set block [ord::get_db_block]
   if { $block == "NULL" } {

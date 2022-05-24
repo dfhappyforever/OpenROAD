@@ -362,11 +362,9 @@ void FastRouteCore::initEdges()
   h_edges_3D_.resize(boost::extents[num_layers_][y_grid_][x_grid_]);
 
   // 2D edge initialization
-  int TC = 0;
   for (int i = 0; i < y_grid_; i++) {
     for (int j = 0; j < x_grid_ - 1; j++) {
       h_edges_[i][j].cap = h_capacity_;
-      TC += h_capacity_;
       h_edges_[i][j].usage = 0;
       h_edges_[i][j].est_usage = 0;
       h_edges_[i][j].red = 0;
@@ -376,7 +374,6 @@ void FastRouteCore::initEdges()
   for (int i = 0; i < y_grid_ - 1; i++) {
     for (int j = 0; j < x_grid_; j++) {
       v_edges_[i][j].cap = v_capacity_;
-      TC += v_capacity_;
       v_edges_[i][j].usage = 0;
       v_edges_[i][j].est_usage = 0;
       v_edges_[i][j].red = 0;
@@ -672,6 +669,26 @@ void FastRouteCore::setEdgeUsage(int x1,
     v_edges_3D_[k][y1][x1].usage = newUsage;
 
     v_edges_[y1][x1].usage += newUsage;
+  }
+}
+
+void FastRouteCore::incrementEdge3DUsage(int x1,
+                                         int y1,
+                                         int l1,
+                                         int x2,
+                                         int y2,
+                                         int l2)
+{
+  const int k = l1 - 1;
+
+  if (y1 == y2) {  // horizontal edge
+    for (int x = x1; x < x2; x++) {
+      h_edges_3D_[k][y1][x].usage++;
+    }
+  } else if (x1 == x2) {  // vertical edge
+    for (int y = y1; y < y2; y++) {
+      v_edges_3D_[k][y][x1].usage++;
+    }
   }
 }
 
@@ -1164,7 +1181,7 @@ NetRouteMap FastRouteCore::run()
           GRT,
           230,
           "Congestion iterations cannot increase overflow, reached the "
-          "maximum number of times the total overflow can bee increased.");
+          "maximum number of times the total overflow can be increased.");
   }
 
   freeRR();

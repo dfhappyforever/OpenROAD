@@ -33,8 +33,6 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "AntennaRepair.h"
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -46,6 +44,7 @@
 #include <utility>
 #include <vector>
 
+#include "AntennaRepair.h"
 #include "Net.h"
 #include "Pin.h"
 #include "grt/GlobalRouter.h"
@@ -71,7 +70,7 @@ int AntennaRepair::checkAntennaViolations(NetRouteMap& routing,
 {
   odb::dbTech* tech = db_->getTech();
 
-  arc_->load_antenna_rules();
+  arc_->loadAntennaRules();
 
   std::map<int, odb::dbTechVia*> default_vias
       = grouter_->getDefaultVias(max_routing_layer);
@@ -122,10 +121,11 @@ int AntennaRepair::checkAntennaViolations(NetRouteMap& routing,
 
       odb::orderWires(db_net, false, false);
 
-      std::vector<ant::VINFO> netViol = arc_->get_net_antenna_violations(
-          db_net,
-          diode_mterm->getMaster()->getConstName(),
-          diode_mterm->getConstName());
+      std::vector<ant::ViolationInfo> netViol
+          = arc_->getNetAntennaViolations(
+              db_net,
+              diode_mterm->getMaster()->getConstName(),
+              diode_mterm->getConstName());
       if (!netViol.empty()) {
         antenna_violations_[db_net] = netViol;
         // This should be done with the db callbacks.
@@ -282,6 +282,8 @@ void AntennaRepair::insertDiode(odb::dbNet* net,
   odb::Rect inst_rect;
   antenna_inst->getBBox()->getBox(inst_rect);
 
+  legally_placed = legally_placed && diodeInRow(inst_rect);
+
   if (!legally_placed) {
     logger_->warn(
         GRT,
@@ -375,6 +377,20 @@ odb::Rect AntennaRepair::getInstRect(odb::dbInst* inst, odb::dbITerm* iterm)
   }
 
   return inst_rect;
+}
+
+bool AntennaRepair::diodeInRow(odb::Rect diode_rect)
+{
+  for (odb::dbRow* row : block_->getRows()) {
+    odb::Rect row_rect;
+    row->getBBox(row_rect);
+
+    if (row_rect.contains(diode_rect)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 }  // namespace grt

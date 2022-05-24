@@ -68,6 +68,8 @@ bool USEMINSPACING_OBS = true;
 bool ENABLE_BOUNDARY_MAR_FIX = true;
 bool ENABLE_VIA_GEN = true;
 bool CLEAN_PATCHES = false;
+bool DO_PA = true;
+bool SINGLE_STEP_DR = false;
 
 std::string VIAINPIN_BOTTOMLAYER_NAME;
 std::string VIAINPIN_TOPLAYER_NAME;
@@ -76,6 +78,8 @@ frLayerNum VIAINPIN_TOPLAYERNUM = std::numeric_limits<frLayerNum>::max();
 int MINNUMACCESSPOINT_MACROCELLPIN = 3;
 int MINNUMACCESSPOINT_STDCELLPIN = 3;
 int ACCESS_PATTERN_END_ITERATION_NUM = 10;
+float CONGESTION_THRESHOLD = 0.4;
+int MAX_CLIPSIZE_INCREASE = 18;
 
 frLayerNum VIA_ACCESS_LAYERNUM = 2;
 
@@ -112,12 +116,6 @@ int CONGCOST = 8;
 int HISTCOST = 32;
 
 namespace fr {
-
-ostream& operator<<(ostream& os, const Point& pIn)
-{
-  os << "( " << pIn.x() << " " << pIn.y() << " )";
-  return os;
-}
 
 ostream& operator<<(ostream& os, const frRect& pinFigIn)
 {
@@ -259,13 +257,6 @@ ostream& operator<<(ostream& os, const frInst& instIn)
   for (auto& m : instIn.getInstTerms()) {
     os << endl << *m;
   }
-  return os;
-}
-
-ostream& operator<<(ostream& os, const Rect& box)
-{
-  os << "( " << box.xMin() << " " << box.yMin() << " ) ( " << box.xMax()
-     << " " << box.yMax() << " )";
   return os;
 }
 

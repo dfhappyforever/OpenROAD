@@ -42,13 +42,9 @@
 #include "util.h"
 #include "rcx.h"
 
-// class duiShape;
-// typedef duiShape * duiShapeId;
-
-class Ath__gridTable;
-
 namespace odb {
 
+class Ath__gridTable;
 class dbBox;
 class dbBlock;
 class dbTech;
@@ -137,12 +133,6 @@ class ISdb : public ZObject
   virtual void setMaxArea(int x1, int y1, int x2, int y2) = 0;
   virtual void resetMaxArea() = 0;
 
-  virtual uint makeGuiBoxes(ZPtr<IZdcr> dcr,
-                            uint menuId,
-                            uint subMenuId,
-                            bool useSdbId,
-                            uint excludeId1 = 0)
-      = 0;
   virtual uint couplingCaps(ZPtr<ISdb> ccSdb,
                             uint couplingDist,
                             ZInterface* Interface,

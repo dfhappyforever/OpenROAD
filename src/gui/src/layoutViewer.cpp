@@ -182,16 +182,10 @@ class GuiPainter : public Painter
     painter_->restore();
   }
 
-  void drawGeomShape(const odb::GeomShape* shape) override
+  void drawOctagon(const odb::Oct& oct) override
   {
-    std::vector<Point> points = shape->getPoints();
-    const int size = points.size();
-    if (size == 5) {
-      painter_->drawRect(QRect(QPoint(shape->xMin(), shape->yMin()),
-                               QPoint(shape->xMax(), shape->yMax())));
-    } else {
-      drawPolygon(points);
-    }
+    std::vector<Point> points = oct.getPoints();
+    drawPolygon(points);
   }
   void drawRect(const odb::Rect& rect, int roundX = 0, int roundY = 0) override
   {
@@ -230,7 +224,7 @@ class GuiPainter : public Painter
     painter_->drawLine(x - o, y + o, x + o, y - o);
   }
 
-  const odb::Point determineStringOrigin(int x, int y, Anchor anchor, const QString& text)
+  const odb::Point determineStringOrigin(int x, int y, Anchor anchor, const QString& text, bool rotate_90 = false)
   {
     const QRect text_bbox = painter_->fontMetrics().boundingRect(text);
     const QPoint text_bbox_center = text_bbox.center();
@@ -266,6 +260,10 @@ class GuiPainter : public Painter
     sx *= scale_adjust;
     sy *= scale_adjust;
     // add desired text location in DBU
+    if (rotate_90) {
+      sx *= -1;
+      std::swap(sx, sy);
+    }
     sx += x;
     sy += y;
 
@@ -276,16 +274,25 @@ class GuiPainter : public Painter
   //       the transformation is mapped to the base transformation and
   //       the world co-ordinates are mapped to the window co-ordinates
   //       before drawing.
-  void drawString(int x, int y, Anchor anchor, const std::string& s) override
+  void drawString(int x, int y, Anchor anchor, const std::string& s, bool rotate_90 = false) override
   {
     const QString text = QString::fromStdString(s);
     const qreal scale_adjust = 1.0 / getPixelsPerDBU();
 
-    const odb::Point origin = determineStringOrigin(x, y, anchor, text);
+    odb::Point origin;
+    if (rotate_90) {
+      // rotating text requires anchor to be Qt default
+      origin = determineStringOrigin(x, y, anchor, text, rotate_90);
+    } else {
+      origin = determineStringOrigin(x, y, anchor, text, rotate_90);
+    }
 
     const QTransform transform = painter_->transform();
     painter_->translate(origin.x(), origin.y());
     painter_->scale(scale_adjust, -scale_adjust); // undo original scaling
+    if (rotate_90) {
+      painter_->rotate(90);
+    }
     painter_->drawText(0, 0, text); // origin of painter is desired location, so paint at 0, 0
     painter_->setTransform(transform);
   }
@@ -452,6 +459,8 @@ LayoutViewer::LayoutViewer(
       animate_selection_(nullptr),
       block_drawing_(nullptr),
       repaint_requested_(true),
+      last_paint_time_(),
+      repaint_interval_(0),
       logger_(nullptr),
       layout_context_menu_(new QMenu(tr("Layout Menu"), this))
 {
@@ -468,11 +477,95 @@ LayoutViewer::LayoutViewer(
           SIGNAL(newBlock(odb::dbBlock*)),
           this,
           SLOT(setBlock(odb::dbBlock*)));
+
+  connect(output_widget_,
+          SIGNAL(commandExecuted(int)),
+          this,
+          SLOT(setResetRepaintInterval()));
+  connect(output_widget_,
+          SIGNAL(executionPaused()),
+          this,
+          SLOT(setResetRepaintInterval()));
+  connect(output_widget_,
+          SIGNAL(commandAboutToExecute()),
+          this,
+          SLOT(setLongRepaintInterval()));
+}
+
+void LayoutViewer::updateModuleVisibility(odb::dbModule* module, bool visible)
+{
+  modules_[module].visible = visible;
+  fullRepaint();
+}
+
+void LayoutViewer::updateModuleColor(odb::dbModule* module, const QColor& color, bool user_selected)
+{
+  modules_[module].color = color;
+  if (user_selected) {
+    modules_[module].user_color = color;
+  }
+  fullRepaint();
+}
+
+void LayoutViewer::populateModuleColors()
+{
+  modules_.clear();
+
+  if (block_ == nullptr) {
+    return;
+  }
+
+  // https://mokole.com/palette.html
+  const std::array<QColor, 31> colors{
+    QColor{105, 105, 105},
+    QColor{85, 107, 47},
+    QColor{34, 139, 34},
+    QColor{139, 0, 0},
+    QColor{72, 61, 139},
+    QColor{184, 134, 11},
+    QColor{0, 139, 139},
+    QColor{70, 130, 180},
+    QColor{0, 0, 139},
+    QColor{143, 188, 143},
+    QColor{128, 0, 128},
+    QColor{176, 48, 96},
+    QColor{255, 0, 0},
+    QColor{255, 140, 0},
+//    QColor{255, 255, 0}, // removed because it is the same as OpenROAD highlight yellow.
+    QColor{0, 255, 0},
+    QColor{138, 43, 226},
+    QColor{0, 255, 127},
+    QColor{0, 255, 255},
+    QColor{0, 0, 255},
+    QColor{173, 255, 47},
+    QColor{255, 99, 71},
+    QColor{255, 0, 255},
+    QColor{30, 144, 255},
+    QColor{144, 238, 144},
+    QColor{173, 216, 230},
+    QColor{255, 20, 147},
+    QColor{123, 104, 238},
+    QColor{255, 160, 122},
+    QColor{245, 222, 179},
+    QColor{238, 130, 238},
+    QColor{255, 192, 203}};
+
+  int color_idx = 0;
+  for (auto* module : block_->getModules()) {
+    auto color = colors[color_idx++];
+    modules_[module] = {color, color, color, true};
+
+    if (color_idx == colors.size()) {
+      color_idx = 0;
+    }
+  }
 }
 
 void LayoutViewer::setBlock(odb::dbBlock* block)
 {
   block_ = block;
+
+  populateModuleColors();
 
   updateScaleAndCentering(scroller_->maximumViewportSize());
   fit();
@@ -837,6 +930,13 @@ std::pair<LayoutViewer::Edge, bool> LayoutViewer::findEdge(const odb::Point& pt,
     auto blcks = search_.searchBlockages(search_line.xMin(), search_line.yMin(), search_line.xMax(), search_line.yMax(), shape_limit);
     for (auto& [box, poly, blck] : blcks) {
       boxes.push_back(box);
+    }
+  }
+
+  if (options_->areRowsVisible()) {
+    for (const auto& row_site : getRowRects(search_line)) {
+      boxes.push_back({{row_site.xMin(), row_site.yMin()},
+                       {row_site.xMax(), row_site.yMax()}});
     }
   }
 
@@ -1431,20 +1531,29 @@ void LayoutViewer::drawRows(QPainter* painter,
   if (!options_->areRowsVisible()) {
     return;
   }
-  int min_resolution = nominalViewableResolution();
-  if (options_->isDetailedVisibility()) {
-    min_resolution = 0;
-  }
-  // three possible draw cases:
-  // 1) resolution allows for individual sites -> draw all
-  // 2) individual sites too small -> just draw row outlines
-  // 3) row is too small -> dont draw anything
 
   QPen pen(options_->rowColor());
   pen.setCosmetic(true);
   painter->setPen(pen);
   painter->setBrush(Qt::NoBrush);
-  for (dbRow* row : block_->getRows()) {
+
+  for (const auto& row_site : getRowRects(bounds)) {
+    painter->drawRect(row_site.xMin(), row_site.yMin(), row_site.dx(), row_site.dy());
+  }
+}
+
+std::vector<odb::Rect> LayoutViewer::getRowRects(const odb::Rect& bounds)
+{
+  int min_resolution = nominalViewableResolution();
+  if (options_->isDetailedVisibility()) {
+    min_resolution = 0;
+  }
+
+  auto rows = search_.searchRows(
+      bounds.xMin(), bounds.yMin(), bounds.xMax(), bounds.yMax(), min_resolution);
+
+  std::vector<odb::Rect> rects;
+  for (auto& [box, poly, row] : rows) {
     int x;
     int y;
     row->getOrigin(x, y);
@@ -1458,18 +1567,18 @@ void LayoutViewer::drawRows(QPainter* painter,
     bool h_visible = h >= min_resolution;
 
     switch (row->getOrient()) {
-      case dbOrientType::R0:
-      case dbOrientType::R180:
-      case dbOrientType::MY:
-      case dbOrientType::MX:
-        /* do nothing */
-        break;
+    case dbOrientType::R0:
+    case dbOrientType::R180:
+    case dbOrientType::MY:
+    case dbOrientType::MX:
+      /* do nothing */
+      break;
 
-      case dbOrientType::R90:
-      case dbOrientType::R270:
-      case dbOrientType::MYR90:
-      case dbOrientType::MXR90:
-        std::swap(w, h);
+    case dbOrientType::R90:
+    case dbOrientType::R270:
+    case dbOrientType::MYR90:
+    case dbOrientType::MXR90:
+      std::swap(w, h);
     }
 
     dbRowDir dir = row->getDirection();
@@ -1490,7 +1599,7 @@ void LayoutViewer::drawRows(QPainter* painter,
         const Rect row(x, y, x + w, y + h);
         if (row.intersects(bounds)) {
           // only paint rows that can be seen
-          painter->drawRect(QRect(QPoint(x, y), QPoint(x + w, y + h)));
+          rects.push_back({x, y, x + w, y + h});
         }
 
         if (dir == dbRowDir::HORIZONTAL) {
@@ -1501,6 +1610,8 @@ void LayoutViewer::drawRows(QPainter* painter,
       }
     }
   }
+
+  return rects;
 }
 
 void LayoutViewer::selection(const Selected& selection)
@@ -1757,6 +1868,8 @@ void LayoutViewer::drawInstanceNames(QPainter* painter,
   // limit non-core text to 1/2.0 (50%) of cell height or width
   static const float non_core_scale_limit = 2.0;
 
+  const qreal scale_adjust = 1.0 / pixels_per_dbu_;
+
   painter->setFont(text_font);
   for (auto inst : insts) {
     dbMaster* master = inst->getMaster();
@@ -1804,7 +1917,7 @@ void LayoutViewer::drawInstanceNames(QPainter* painter,
     }
 
     painter->translate(instance_box.xMin(), instance_box.yMin());
-    painter->scale(1.0 / pixels_per_dbu_, -1.0 / pixels_per_dbu_);
+    painter->scale(scale_adjust, -scale_adjust);
     if (do_rotate) {
       text_bounding_box = font_metrics.boundingRect(name);
       painter->rotate(90);
@@ -1993,6 +2106,8 @@ void LayoutViewer::drawBlock(QPainter* painter,
     drawAccessPoints(gui_painter, insts);
   }
 
+  drawModuleView(painter, insts);
+
   drawRegionOutlines(painter);
 
   if (options_->arePinMarkersVisible()) {
@@ -2075,16 +2190,47 @@ void LayoutViewer::drawAccessPoints(Painter& painter, const std::vector<odb::dbI
   }
 }
 
+void LayoutViewer::drawModuleView(QPainter* painter,
+                                  const std::vector<odb::dbInst*>& insts)
+{
+  if (!options_->isModuleView()) {
+    return;
+  }
+
+  for (auto* inst : insts) {
+    auto* module = inst->getModule();
+
+    if (module == nullptr) {
+      continue;
+    }
+
+    const auto setting = modules_[module];
+
+    if (!setting.visible) {
+      continue;
+    }
+
+    odb::Rect inst_outline;
+    inst->getBBox()->getBox(inst_outline);
+
+    auto color = setting.color;
+    painter->setPen(QPen(color, 0));
+    color.setAlpha(100);
+    painter->setBrush(QBrush(color));
+    painter->drawRect(inst_outline.xMin(), inst_outline.yMin(), inst_outline.dx(), inst_outline.dy());
+  }
+}
+
 void LayoutViewer::drawPinMarkers(Painter& painter,
                                   const odb::Rect& bounds)
 {
   auto block_bbox = block_->getBBox();
   auto block_width = block_bbox->getWidth();
   auto block_height = block_bbox->getLength();
-  double mult_factor = (2.0 * fit_pixels_per_dbu_) / (100 * pixels_per_dbu_);
-  auto max_dim
-      = std::max(block_width, block_height)
-        * mult_factor;  // 4 Percent of bounds is used to draw pin-markers
+  const double scale_factor = 0.02; // 4 Percent of bounds is used to draw pin-markers
+  const int block_max_dim = std::min(std::max(block_width, block_height), bounds.maxDXDY());
+  const double abs_min_dim = 8.0; // prevent markers from falling apart
+  const double max_dim = std::max(scale_factor * block_max_dim, abs_min_dim);
 
   QPainter* qpainter = static_cast<GuiPainter&>(painter).getPainter();
   const QFont initial_font = qpainter->font();
@@ -2116,6 +2262,18 @@ void LayoutViewer::drawPinMarkers(Painter& painter,
     Point( max_dim / 4, max_dim / 2),
     Point(0, 0)
   };
+
+  // RTree used to search for overlapping shapes and decide if rotation of text is needed.
+  bgi::rtree<Search::Box, bgi::quadratic<16>> pin_text_spec_shapes;
+  struct PinText {
+    Search::Box rect;
+    bool can_rotate;
+    odb::dbTechLayer* layer;
+    std::string text;
+    odb::Point pt;
+    Painter::Anchor anchor;
+  };
+  std::vector<PinText> pin_text_spec;
 
   for (odb::dbBTerm* term : block_->getBTerms()) {
     for (odb::dbBPin* pin : term->getBPins()) {
@@ -2203,11 +2361,53 @@ void LayoutViewer::drawPinMarkers(Painter& painter,
             text_anchor_pt.setY(text_anchor_pt.y() - max_dim - text_margin);
           }
 
-          painter.drawString(text_anchor_pt.x(), text_anchor_pt.y(), text_anchor, term->getName());
+          PinText pin_specs;
+          pin_specs.layer = layer;
+          pin_specs.text = term->getName();
+          pin_specs.pt = text_anchor_pt;
+          pin_specs.anchor = text_anchor;
+          pin_specs.can_rotate = arg_min == 2 || arg_min == 3;
+          // only need bounding box when rotation is possible
+          if (pin_specs.can_rotate) {
+            odb::Rect text_rect = painter.stringBoundaries(pin_specs.pt.x(), pin_specs.pt.y(), pin_specs.anchor, pin_specs.text);
+            text_rect.bloat(text_margin, text_rect);
+            pin_specs.rect = Search::Box(Search::Point(text_rect.xMin(), text_rect.yMin()),
+                                         Search::Point(text_rect.xMax(), text_rect.yMax()));
+            pin_text_spec_shapes.insert(pin_specs.rect);
+          } else {
+            pin_specs.rect = Search::Box();
+          }
+          pin_text_spec.push_back(pin_specs);
         }
       }
     }
   }
+
+  for (const auto& pin : pin_text_spec) {
+    odb::dbTechLayer* layer = pin.layer;
+
+    bool do_rotate = false;
+    auto anchor = pin.anchor;
+    if (pin.can_rotate) {
+      if (pin_text_spec_shapes.qbegin(bgi::intersects(pin.rect) && bgi::satisfies([&](const auto& other) {
+          return !bg::equals(other, pin.rect);
+        })) != pin_text_spec_shapes.qend()) {
+        // adjust anchor
+        if (pin.anchor == Painter::BOTTOM_CENTER) {
+          anchor = Painter::RIGHT_CENTER;
+        } else if (pin.anchor == Painter::TOP_CENTER) {
+          anchor = Painter::LEFT_CENTER;
+        }
+        do_rotate = true;
+      }
+    }
+
+    painter.setPen(layer);
+    painter.setBrush(layer);
+
+    painter.drawString(pin.pt.x(),  pin.pt.y(), anchor, pin.text, do_rotate);
+  }
+
   qpainter->setFont(initial_font);
 }
 
@@ -2257,6 +2457,14 @@ void LayoutViewer::updateBlockPainting(const QRect& area)
     return;
   }
 
+  auto now = std::chrono::system_clock::now();
+  if (block_drawing_ != nullptr && std::chrono::duration_cast<std::chrono::milliseconds>(now - last_paint_time_).count() < repaint_interval_) {
+    // re-emit update since a paint will be needed later
+    emit update();
+    return;
+  }
+
+  last_paint_time_ = now;
   repaint_requested_ = false;
 
   // build new drawing of layout
@@ -2653,6 +2861,7 @@ void LayoutViewer::saveImage(const QString& filepath, const Rect& region, double
     img.fill(background_);
     // need to remove cache to ensure image is correct
     std::unique_ptr<QPixmap> saved_cache = std::move(block_drawing_);
+    const auto last_paint_time = last_paint_time_;
     block_drawing_ = nullptr;
 
     render(&img, {0, 0}, save_region);
@@ -2661,6 +2870,7 @@ void LayoutViewer::saveImage(const QString& filepath, const Rect& region, double
     }
     // restore cache
     block_drawing_ = std::move(saved_cache);
+    last_paint_time_ = last_paint_time;
   } else {
     logger_->warn(utl::GUI, 12, "Image is too big to be generated: {}px x {}px", bounding_rect.width(), bounding_rect.height());
   }
@@ -2849,6 +3059,16 @@ bool LayoutViewer::isNetVisible(odb::dbNet* net)
   return focus_visible && options_->isNetVisible(net);
 }
 
+void LayoutViewer::setResetRepaintInterval()
+{
+  repaint_interval_ = 0; // no delay in repaints
+}
+
+void LayoutViewer::setLongRepaintInterval()
+{
+  repaint_interval_ = 1000; // wait one second before repainting layout
+}
+
 ////// LayoutScroll ///////
 LayoutScroll::LayoutScroll(LayoutViewer* viewer, QWidget* parent)
     : QScrollArea(parent), viewer_(viewer)
@@ -2913,6 +3133,24 @@ void LayoutViewer::generateCutLayerMaximumSizes()
           for (auto box : via->getBoxes()) {
             if (box->getTechLayer() == layer) {
               width = std::max(width, static_cast<int>(std::max(box->getDX(), box->getDY())));
+            }
+          }
+        }
+      }
+      if (width == 0) {
+        // no vias, look through all pins to find max size.
+        // This can happen for contacts in stdcell pins which are still
+        // important for diff layer cut spacing checks.
+        std::vector<dbMaster*> masters;
+        block_->getMasters(masters);
+        for (dbMaster* master : masters) {
+          for (dbMTerm* term : master->getMTerms()) {
+            for (dbMPin* pin : term->getMPins()) {
+              for (dbBox* box : pin->getGeometry()) {
+                if (box->getTechLayer() == layer) {
+                  width = std::max(width, static_cast<int>(std::max(box->getDX(), box->getDY())));
+                }
+              }
             }
           }
         }

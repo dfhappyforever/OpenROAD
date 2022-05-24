@@ -39,32 +39,7 @@
 namespace rcx {
 
 using utl::RCX;
-
-using odb::dbBlock;
-using odb::dbBox;
-using odb::dbBTerm;
-using odb::dbCapNode;
-using odb::dbCCSeg;
-using odb::dbChip;
-using odb::dbDatabase;
-using odb::dbNet;
-using odb::dbRSeg;
-using odb::dbSet;
-using odb::dbShape;
-using odb::dbSigType;
-using odb::dbTech;
-using odb::dbTechLayer;
-using odb::dbTechLayerDir;
-using odb::dbTechLayerType;
-using odb::dbWire;
-using odb::dbWirePath;
-using odb::dbWirePathItr;
-using odb::dbWirePathShape;
-using odb::gs;
-using odb::ISdb;
-using odb::Rect;
-using odb::SEQ;
-using odb::ZPtr;
+using namespace odb;
 
 void extMain::init(odb::dbDatabase* db, Logger* logger) {
   _db = db;
@@ -192,7 +167,7 @@ void extMain::writeIncrementalSpef(std::vector<dbNet*>& bnets,
     if (_spef)
       delete _spef;
     _spef = new extSpef(_tech, _block, logger_, this);
-    // copy block name for incremental spef - needed for magma
+    // copy block name for incremental spef
     // Mattias - Nov 19/07
     _spef->setDesign((char*)_block->getName().c_str());
   }
@@ -842,10 +817,6 @@ void extMain::setBlock(dbBlock* block) {
   _origSpefFilePrefix = NULL;
   _newSpefFilePrefix = NULL;
   _excludeCells = NULL;
-}
-uint extMain::makeGuiBoxes(uint extGuiBoxType) {
-  uint cnt = 0;
-  return cnt;
 }
 
 uint extMain::computeXcaps(uint boxType) {

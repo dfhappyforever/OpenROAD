@@ -60,10 +60,10 @@ proc rtl_macro_placer { args } {
     set area_wt 0.01
     set wirelength_wt 88.7
     set outline_wt 74.71
-    set boundary_wt 25.0
+    set boundary_wt 225.0
     set macro_blockage_wt 50.0
     set location_wt 100.0
-    set notch_wt 212.5
+    set notch_wt 212.0
 
     set macro_halo 10.0
     set report_directory "rtl_mp"
@@ -71,6 +71,10 @@ proc rtl_macro_placer { args } {
     set config_file "" 
     set macro_blockage_file "macro_blockage.txt"
     set prefer_location_file "location.txt"
+
+    if { [info exists keys(-report_file)] } {
+        set report_file $keys(-report_file)
+    }
 
     if { [info exists keys(-area_weight)] } {
         set area_wt $keys(-area_weight)
@@ -125,32 +129,6 @@ proc rtl_macro_placer { args } {
                     $report_file $macro_blockage_file $prefer_location_file]} {
         return false
     }
-
-    set block [ord::get_db_block]
-    set units [$block getDefUnits]
-    set macro_placement_file "./${report_directory}/macro_placement.cfg"
-
-    set ch [open $macro_placement_file]
-
-    while {![eof $ch]} {
-        set line [gets $ch]
-        if {[llength $line] == 0} {continue}
-
-        set inst_name [lindex $line 0]
-        set orientation [lindex $line 1]
-        set x [expr round([lindex $line 2] * $units)]
-        set y [expr round([lindex $line 3] * $units)]
-
-        if {[set inst [$block findInst $inst_name]] == "NULL"} {
-            utl::error MPL 4 "Cannot find instance $inst_name."
-        }
-
-        $inst setOrient $orientation
-        $inst setOrigin $x $y
-        $inst setPlacementStatus FIRM
-    }
-
-    close $ch
 
     return true
 }

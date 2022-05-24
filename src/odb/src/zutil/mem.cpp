@@ -34,6 +34,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+namespace odb {
+
 void ATH__failMessage(const char* msg)
 {
   fprintf(stderr, "%s\n", msg);
@@ -48,12 +50,7 @@ void Ath__hashError(const char* msg, int exitFlag)
   if (exitFlag > 0)
     exit(1);
 }
-void Ath__allocFailure(const char* msg)
-{
-  fprintf(stderr, "Failed to allocate %s\n", msg);
-  perror("");
-  fprintf(stderr, "\nexiting ...\n");
-}
+
 char* ATH__allocCharWord(int n)
 {
   if (n <= 0)
@@ -73,3 +70,5 @@ void ATH__deallocCharWord(const char* a)
   }
   delete[] a;
 }
+
+}  // namespace odb

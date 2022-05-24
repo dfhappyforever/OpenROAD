@@ -38,14 +38,13 @@
 
 #include "ZInterface.h"
 #include "array1.h"
-#include "atypes.h"
 #include "box.h"
 #include "db.h"
 #include "geom.h"
 #include "gseq.h"
 #include "rcx.h"
 
-using namespace odb;
+namespace odb {
 
 enum Ath__overlapAdjust
 {
@@ -830,3 +829,5 @@ class Ath__gridTable
 
   uint getWireCnt();
 };
+
+}  // namespace odb

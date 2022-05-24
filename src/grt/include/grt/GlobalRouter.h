@@ -44,13 +44,10 @@
 #include <vector>
 
 #include "GRoute.h"
+#include "RoutePt.h"
 #include "odb/db.h"
 #include "odb/dbBlockCallBackObj.h"
 #include "sta/Liberty.hh"
-
-namespace ord {
-class OpenRoad;
-}
 
 namespace gui {
 class Gui;
@@ -70,6 +67,14 @@ class dbTechLayer;
 
 namespace stt {
 class SteinerTreeBuilder;
+}
+
+namespace ant {
+class AntennaChecker;
+}
+
+namespace dpl {
+class Opendp;
 }
 
 namespace sta {
@@ -117,36 +122,34 @@ enum class NetType
   All
 };
 
-class RoutePt
+struct PinGridLocation
 {
- public:
-  RoutePt() = default;
-  RoutePt(int x, int y, int layer);
-  int x() { return _x; };
-  int y() { return _y; };
-  int layer() { return _layer; };
+  PinGridLocation(odb::dbITerm* iterm,
+                  odb::dbBTerm* bterm,
+                  odb::Point pt);
 
-  friend bool operator<(const RoutePt& p1, const RoutePt& p2);
-
- private:
-  int _x;
-  int _y;
-  int _layer;
+  odb::dbITerm* iterm_;
+  odb::dbBTerm* bterm_;
+  odb::Point pt_;
 };
-
-bool operator<(const RoutePt& p1, const RoutePt& p2);
 
 class GlobalRouter
 {
  public:
   GlobalRouter();
   ~GlobalRouter();
-  void init(ord::OpenRoad* openroad);
+  void init(utl::Logger* logger,
+            stt::SteinerTreeBuilder* stt_builder,
+            odb::dbDatabase* db,
+            sta::dbSta* sta,
+            ant::AntennaChecker* antenna_checker,
+            dpl::Opendp* opendp);
   void clear();
 
   void setAdjustment(const float adjustment);
   void setMinRoutingLayer(const int min_layer);
   void setMaxRoutingLayer(const int max_layer);
+  int getMaxRoutingLayer() const { return max_routing_layer_; }
   void setMinLayerForClock(const int min_layer);
   void setMaxLayerForClock(const int max_layer);
   unsigned getDbId();
@@ -162,6 +165,7 @@ class GlobalRouter
   void setGridOrigin(int x, int y);
   void setAllowCongestion(bool allow_congestion);
   void setMacroExtension(int macro_extension);
+  void setPinOffset(int pin_offset);
   void printGrid();
 
   // flow functions
@@ -171,6 +175,8 @@ class GlobalRouter
   void initFastRouteIncr(std::vector<Net*>& nets);
   void estimateRC();
   void estimateRC(odb::dbNet* db_net);
+  // Return GRT layer lengths in dbu's for db_net's route indexed by routing layer.
+  std::vector<int> routeLayerLengths(odb::dbNet* db_net);
   void globalRoute();
   NetRouteMap& getRoutes() { return routes_; }
   bool haveRoutes() const { return !routes_.empty(); }
@@ -226,6 +232,7 @@ class GlobalRouter
                            const char* file_name);
   void reportNetDetailedRouteWL(odb::dbWire* wire, std::ofstream& out);
   void createWLReportFile(const char* file_name, bool verbose);
+  std::vector<PinGridLocation> getPinGridPositions(odb::dbNet *db_net);
 
  private:
   // Net functions
@@ -296,12 +303,18 @@ class GlobalRouter
   void reportLayerSettings(int min_routing_layer, int max_routing_layer);
   void reportResources();
   void reportCongestion();
+  void updateEdgesUsage();
+  void updateDbCongestionFromGuides();
 
   // check functions
   void checkPinPlacement();
 
   // antenna functions
   void addLocalConnections(NetRouteMap& routes);
+  bool pinOverlapsGSegment(const odb::Point& pin_position,
+                           const int pin_layer,
+                           const std::vector<odb::Rect>& pin_boxes,
+                           const GRoute& route);
 
   // incremental funcions
   void updateDirtyRoutes();
@@ -348,10 +361,11 @@ class GlobalRouter
   bool isNonLeafClock(odb::dbNet* db_net);
   int trackSpacing();
 
-  ord::OpenRoad* openroad_;
   utl::Logger* logger_;
   gui::Gui* gui_;
   stt::SteinerTreeBuilder* stt_builder_;
+  ant::AntennaChecker* antenna_checker_;
+  dpl::Opendp* opendp_;
   // Objects variables
   FastRouteCore* fastroute_;
   odb::Point grid_origin_;
@@ -368,7 +382,7 @@ class GlobalRouter
   int min_routing_layer_;
   int max_routing_layer_;
   int layer_for_guide_dimension_;
-  const int gcells_offset_ = 2;
+  int gcells_offset_;
   int overflow_iterations_;
   bool allow_congestion_;
   std::vector<int> vertical_capacities_;

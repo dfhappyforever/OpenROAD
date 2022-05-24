@@ -1,3 +1,33 @@
+#BSD 3-Clause License
+#
+#Copyright (c) 2019, The Regents of the University of California
+#All rights reserved.
+#
+#Redistribution and use in source and binary forms, with or without
+#modification, are permitted provided that the following conditions are met:
+#
+#1. Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+#2. Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+#3. Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+#THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+#AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+#IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+#DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+#FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+#DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+#SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+#CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+#OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+#OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 sta::define_cmd_args "set_bump_options" {[-pitch pitch] \
                                            [-bump_pin_name pin_name] \
                                            [-spacing_to_edge spacing] \
@@ -2456,22 +2486,22 @@ namespace eval ICeWall {
     }
   }
 
-  proc connect_to_bondpad_or_bump {inst pin_shape padcell} {
+  proc connect_to_bondpad_or_bump {inst pin_shape signal_name} {
     variable block
     variable tech
     variable nets_created
     variable pins_created
 
-    set assigned_name [get_padcell_assigned_name $padcell]
-    if {[is_power_net $assigned_name]} {
+    # debug "signal_name: $signal_name"
+    if {[is_power_net $signal_name]} {
       set type "POWER"
-    } elseif {[is_ground_net $assigned_name]} {
+    } elseif {[is_ground_net $signal_name]} {
       set type "GROUND"
     } else {
       set type "SIGNAL"
     }
 
-    set term [$block findBTerm [get_padcell_signal_name $padcell]]
+    set term [$block findBTerm $signal_name]
     if {$term != "NULL"} {
       set net [$term getNet]
       foreach iterm [$net getITerms] {
@@ -2479,39 +2509,31 @@ namespace eval ICeWall {
       }
     } else {
       if {$type != "SIGNAL"} {
-        set net [$block findNet $assigned_name]
+        set net [$block findNet $signal_name]
         if {$net == "NULL"} {
           if {$type == "POWER" || $type == "GROUND"} {
-            utl::info "PAD" 51 "Creating padring net: $assigned_name."
-            set net [odb::dbNet_create $block $assigned_name]
+            utl::info "PAD" 51 "Creating padring net: $signal_name."
+            set net [odb::dbNet_create $block $signal_name]
             lappend nets_created $net
           }
           if {$net == "NULL"} {
             continue
           }
         }
-        if {[set term [$block findBTerm $assigned_name]] == "NULL"} {
-          set term [odb::dbBTerm_create $net $assigned_name]
+        if {[set term [$block findBTerm $signal_name]] == "NULL"} {
+          set term [odb::dbBTerm_create $net $signal_name]
           $term setSigType $type
         }
-      } elseif {[is_padcell_unassigned $padcell]} {
-        set idx 0
-        while {[$block findNet "_UNASSIGNED_$idx"] != "NULL"} {
-          incr idx
-        }
-        utl::info "PAD" 52 "Creating padring net: _UNASSIGNED_$idx."
-        set net [odb::dbNet_create $block "_UNASSIGNED_$idx"]
-        lappend nets_created $net
-        set term [odb::dbBTerm_create $net "_UNASSIGNED_$idx"]
       } else {
-        utl::warn "PAD" 12 "Cannot find a terminal [get_padcell_signal_name $padcell] for $padcell to associate with bondpad [$inst getName]."
+        utl::warn "PAD" 12 "Cannot find a terminal $signal_name to associate with bondpad [$inst getName]."
         return
       }
     }
 
-    # debug "padcell: $padcell, net: $net"
+    # debug "padcell: $signal_name, net: $net"
     $net setSpecial
     $net setSigType $type
+    # debug "net: [$net getName], signalType: $type"
 
     set pin [odb::dbBPin_create $term]
     lappend pins_created $pin
@@ -2529,6 +2551,8 @@ namespace eval ICeWall {
     } else {
       odb::dbBox_create $pin $layer {*}$pin_shape
     }
+    # debug "pin on term: [$term getName] shaoe: $pin_shape"
+
     $pin setPlacementStatus "FIRM"
   }
 
@@ -2600,7 +2624,7 @@ namespace eval ICeWall {
           if {[llength $pin_shape] != 4} {
             set pin_shape $center
           }
-          connect_to_bondpad_or_bump $inst $pin_shape $padcell
+          connect_to_bondpad_or_bump $inst $pin_shape [get_padcell_assigned_name $padcell]
         } else {
           if {[set inst [get_padcell_inst $padcell]] == "NULL"} {
             utl::warn "PAD" 48 "No padcell instance found for $padcell."
@@ -3225,6 +3249,7 @@ namespace eval ICeWall {
 
     set rdl_layer [[ord::get_db_tech] findLayer $rdl_layer_name]
     dict for {net_name padcells} $traces {
+      # debug "net_name: $net_name"
       set net [[ord::get_db_block] findNet $net_name]
       set swire [odb::dbSWire_create $net ROUTED]
       foreach padcell $padcells {
@@ -3365,8 +3390,9 @@ namespace eval ICeWall {
         $inst setPlacementStatus "FIRM"
 
         set padcell [get_padcell_at_row_col $row $col]
+	# debug "bump_name: $bump_name, inst: [$inst getName], padcell: $padcell"
+        set pin_shape {}
         if {$padcell != ""} {
-          set pin_shape {}
           if {[has_library_pad_pin_name "bump"]} {
             set pin_name [get_library_pad_pin_name "bump"]
             set pin_shape [get_pin_shape $inst $pin_name]
@@ -3379,13 +3405,31 @@ namespace eval ICeWall {
               }
               set iterm [$inst getITerm $mterm]
               $iterm connect $net
-            }
+	    }
           }
-          if {[llength $pin_shape] != 4} {
-            set pin_shape [get_bump_center $row $col]
-          }
-          connect_to_bondpad_or_bump $inst $pin_shape $padcell
         }
+
+        if {[llength $pin_shape] != 4} {
+          set pin_shape [get_bump_center $row $col]
+        }
+
+        if {[is_padcell_unassigned $padcell]} {
+          set idx 0
+          while {[$block findNet "_UNASSIGNED_$idx"] != "NULL"} {
+            incr idx
+          }
+          utl::info "PAD" 52 "Creating padring net: _UNASSIGNED_$idx."
+          set net [odb::dbNet_create $block "_UNASSIGNED_$idx"]
+          lappend nets_created $net
+          set term [odb::dbBTerm_create $net "_UNASSIGNED_$idx"]
+	  set signal_name [$net getName]
+	} elseif {$padcell != ""} {
+	  set signal_name [get_padcell_assigned_name $padcell]
+	} else {
+	  set signal_name [get_bump_signal_name $row $col]
+	}
+
+        connect_to_bondpad_or_bump $inst $pin_shape $signal_name
       }
     }
     # debug "end"
@@ -3426,9 +3470,9 @@ namespace eval ICeWall {
     # debug "corner_size $corner_size"
     # debug "bump_pitch $bump_pitch"
 
-    set rdl_min_spacing [[$tech findLayer $rdl_routing_layer] getSpacing]
     set power_nets {}
     set ground_nets {}
+    set rdl_min_spacing [[$tech findLayer $rdl_routing_layer] getSpacing]
     # Add stripes for bumps in the central core area
     if {[pdngen::get_dir $rdl_routing_layer] == "hor"} {
       for {set row [expr $corner_size + 1]} {$row <= $num_bumps_y - $corner_size} {incr row} {
@@ -3455,21 +3499,21 @@ namespace eval ICeWall {
           }
           set point [get_bump_center $row $col]
           set net_name [bump_get_net $row $col]
-          set tag [bump_get_tag $row $col]
           if {[bump_is_power $row $col]} {
-            lappend power_nets $net_name
-          } elseif {[bump_is_ground $row $col]} {
-            lappend ground_nets $net_name
-          }
-          # debug $net_name
+	    lappend power_nets $net_name
+	  } elseif {[bump_is_ground $row $col]} {
+	    lappend ground_nets $net_name
+	  }
+	  # debug $net_name
           if {$prev_tag == ""} {
             set minX [expr [dict get $point x] - $bump_pitch / 2]
-          } elseif {$prev_tag == $tag} {
+          } elseif {$prev_tag == $net_name} {
             set minX [expr [dict get $point x] - $bump_pitch / 2 - $rdl_min_spacing / 2]
           } else {
             set minX [expr [dict get $point x] - $bump_pitch / 2 + $rdl_min_spacing / 2]
           }
-          set prev_tag $tag
+          # debug "row: $row, col: $col, x: $x, y: [dict get $point y], prev: $prev_tag, tag: $net_name, minY: $minY, maxY, $maxY"
+          set prev_tag $net_name
           if {$col == $num_bumps_x - $corner_size} {
             set maxX [expr [dict get $point x] + $bump_pitch / 2]
           } else {
@@ -3478,10 +3522,10 @@ namespace eval ICeWall {
 
           set upper_stripe [odb::newSetFromRect $minX [expr $upperY - $rdl_stripe_width / 2] $maxX [expr $upperY + $rdl_stripe_width / 2]]
           set lower_stripe [odb::newSetFromRect $minX [expr $lowerY - $rdl_stripe_width / 2] $maxX [expr $lowerY + $rdl_stripe_width / 2]]
-          pdngen::add_stripe $rdl_routing_layer $tag $upper_stripe
-          pdngen::add_stripe $rdl_routing_layer $tag $lower_stripe
+          pdngen::add_stripe $rdl_routing_layer $net_name $upper_stripe
+          pdngen::add_stripe $rdl_routing_layer $net_name $lower_stripe
           set link_stripe [odb::newSetFromRect [expr [dict get $point x] - $rdl_stripe_width / 2] $lowerY [expr [dict get $point x] + $rdl_stripe_width / 2] $upperY]
-          pdngen::add_stripe $rdl_routing_layer $tag $link_stripe
+          pdngen::add_stripe $rdl_routing_layer $net_name $link_stripe
         }
       }
     } elseif {[pdngen::get_dir $rdl_routing_layer] == "ver"} {
@@ -3510,17 +3554,15 @@ namespace eval ICeWall {
             continue
           }
           set net_name [bump_get_net $row $col]
-          set tag [bump_get_tag $row $col]
           if {[bump_is_power $row $col]} {
-            lappend power_nets $net_name
-          } elseif {[bump_is_ground $row $col]} {
-            lappend ground_nets $net_name
-          }
+	    lappend power_nets $net_name
+	  } elseif {[bump_is_ground $row $col]} {
+	    lappend ground_nets $net_name
+	  }
           set point [get_bump_center $row $col]
-          # debug $tag
           if {$prev_tag == ""} {
             set maxY [expr [dict get $point y] + $bump_pitch / 2]
-          } elseif {$prev_tag == $tag} {
+          } elseif {$prev_tag == $net_name} {
             set maxY [expr [dict get $point y] + $bump_pitch / 2 + $rdl_min_spacing / 2]
           } else {
             set maxY [expr [dict get $point y] + $bump_pitch / 2 - $rdl_min_spacing / 2]
@@ -3530,14 +3572,14 @@ namespace eval ICeWall {
           } else {
             set minY [expr [dict get $point y] - $bump_pitch / 2 + $rdl_min_spacing / 2]
           }
-          # debug "row: $row, col: $col, x: $x, y: [dict get $point y], prev: $prev_tag, tag: $tag, minY: $minY, maxY, $maxY"
-          set prev_tag $tag
+          # debug "row: $row, col: $col, x: $x, y: [dict get $point y], prev: $prev_tag, tag: $net_name, minY: $minY, maxY, $maxY"
+          set prev_tag $net_name
           set upper_stripe [odb::newSetFromRect [expr $upperX - $rdl_stripe_width / 2] $minY [expr $upperX + $rdl_stripe_width / 2] $maxY]
           set lower_stripe [odb::newSetFromRect [expr $lowerX - $rdl_stripe_width / 2] $minY [expr $lowerX + $rdl_stripe_width / 2] $maxY]
-          pdngen::add_stripe $rdl_routing_layer $tag $upper_stripe
-          pdngen::add_stripe $rdl_routing_layer $tag $lower_stripe
+          pdngen::add_stripe $rdl_routing_layer $net_name $upper_stripe
+          pdngen::add_stripe $rdl_routing_layer $net_name $lower_stripe
           set link_stripe [odb::newSetFromRect $lowerX [expr [dict get $point y] - $rdl_stripe_width / 2] $upperX [expr [dict get $point y] + $rdl_stripe_width / 2]]
-          pdngen::add_stripe $rdl_routing_layer $tag $link_stripe
+          pdngen::add_stripe $rdl_routing_layer $net_name $link_stripe
         }
       }
     }
@@ -3545,8 +3587,10 @@ namespace eval ICeWall {
     # debug "$pdngen::metal_layers"
     # debug "[array get pdngen::stripe_locs]"
     pdngen::merge_stripes
-    dict set pdngen::design_data power_nets [lsort -unique $power_nets]
-    dict set pdngen::design_data ground_nets [lsort -unique $ground_nets]
+    set pdngen::power_nets $power_nets 
+    set pdngen::ground_nets $ground_nets
+    dict set pdngen::design_data power_nets {} ; # [get_power_nets]
+    dict set pdngen::design_data ground_nets {} ; # [get_ground_nets]
     dict set pdngen::design_data core_domain "CORE"
     pdngen::opendb_update_grid
   }
@@ -5578,10 +5622,10 @@ namespace eval ICeWall {
         "left"   {set yMin [expr [dict get $center y] - $pitch / 2]; set yMax [expr [dict get $center y] + $pitch / 2]}
       }
       if {[dict get $padcell cell scaled_center x] < $xMin || [dict get $padcell cell scaled_center x] > $xMax} {
-        utl::error PAD 163 "Padcell $padcell x location ([ord::dbu_to_microns [dict get $padcell cell scaled_center x]]) cannot connect to the bump $row,$col on the $side_name edge. The x location must satisfy [ord::dbu_to_microns $xMin] <= x <= [ord::dbu_to_microns $xMax]."
+        utl::error PAD 163 "Padcell [dict get $padcell inst_name] x location ([ord::dbu_to_microns [dict get $padcell cell scaled_center x]]) cannot connect to the bump $row,$col on the $side_name edge. The x location must satisfy [ord::dbu_to_microns $xMin] <= x <= [ord::dbu_to_microns $xMax]."
       }
       if {[dict get $padcell cell scaled_center y] < $yMin || [dict get $padcell cell scaled_center y] > $yMax} {
-        utl::error PAD 164 "Padcell $padcell y location ([ord::dbu_to_microns [dict get $padcell cell scaled_center y]]) cannot connect to the bump $row,$col on the $side_name edge. The y location must satisfy [ord::dbu_to_microns $yMin] <= y <= [ord::dbu_to_microns $yMax]."
+        utl::error PAD 164 "Padcell [dict get $padcell inst_name] y location ([ord::dbu_to_microns [dict get $padcell cell scaled_center y]]) cannot connect to the bump $row,$col on the $side_name edge. The y location must satisfy [ord::dbu_to_microns $yMin] <= y <= [ord::dbu_to_microns $yMax]."
       }
 
       if {[dict exists $padcell use_signal_name]} {

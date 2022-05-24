@@ -57,6 +57,7 @@ class Logger;
 namespace fr {
 
 class frConstraint;
+struct SearchRepairArgs;
 
 struct FlexDRViaData
 {
@@ -100,6 +101,17 @@ struct FlexDRViaData
 class FlexDR
 {
  public:
+  struct SearchRepairArgs
+  {
+    int size;
+    int offset;
+    int mazeEndIter;
+    frUInt4 workerDRCCost;
+    frUInt4 workerMarkerCost;
+    int ripupMode;
+    bool followGuide;
+  };
+
   // constructors
   FlexDR(frDesign* designIn, Logger* loggerIn, odb::dbDatabase* dbIn);
   ~FlexDR();
@@ -108,7 +120,11 @@ class FlexDR
   frDesign* getDesign() const { return design_; }
   frRegionQuery* getRegionQuery() const { return design_->getRegionQuery(); }
   // others
+  void init();
   int main();
+  void searchRepair(const SearchRepairArgs& args);
+  void end(bool done = false);
+
   const FlexDRViaData* getViaData() const { return &via_data_; }
   void setDebug(frDebugSettings* settings);
 
@@ -150,9 +166,11 @@ class FlexDR
   unsigned short dist_port_;
   std::string dist_dir_;
   std::string globals_path_;
+  bool increaseClipsize_;
+  float clipSizeInc_;
+  int iter_;
 
   // others
-  void init();
   void initFromTA();
   void initGCell2BoundaryPin();
   void getBatchInfo(int& batchStepX, int& batchStepY);
@@ -194,15 +212,6 @@ class FlexDR
   void removeGCell2BoundaryPin();
   std::map<frNet*, std::set<std::pair<Point, frLayerNum>>, frBlockObjectComp>
   initDR_mergeBoundaryPin(int i, int j, int size, const Rect& routeBox);
-  void searchRepair(int iter,
-                    int size,
-                    int offset,
-                    int mazeEndIter,
-                    frUInt4 workerDRCCost,
-                    frUInt4 workerMarkerCost,
-                    int ripupMode,
-                    bool followGuide);
-  void end(bool writeMetrics = false);
 
   // utility
   void reportDRC(const std::string& file_name);
@@ -307,7 +316,8 @@ class FlexDRWorker
         gridGraph_(design->getTech(), this),
         markers_(),
         rq_(this),
-        gcWorker_(nullptr)
+        gcWorker_(nullptr),
+        isCongested_(false)
   {
   }
   FlexDRWorker()
@@ -317,7 +327,8 @@ class FlexDRWorker
         debugSettings_(nullptr),
         via_data_(nullptr),
         rq_(nullptr),
-        gcWorker_(nullptr)
+        gcWorker_(nullptr),
+        isCongested_(false)
   {
   }
   // setters
@@ -334,6 +345,7 @@ class FlexDRWorker
     drIter_ = in;
     boundaryPin_ = std::move(bp);
   }
+  bool isCongested() const { return isCongested_; }
   void setBoundaryPins(std::map<frNet*,
                                 std::set<std::pair<Point, frLayerNum>>,
                                 frBlockObjectComp>& bp)
@@ -533,6 +545,7 @@ class FlexDRWorker
   std::string dist_ip_;
   unsigned short dist_port_;
   std::string dist_dir_;
+  bool isCongested_;
 
   // init
   void init(const frDesign* design);
@@ -706,7 +719,9 @@ class FlexDRWorker
   void initMazeCost_terms(const std::set<frBlockObject*>& objs,
                           bool isAddPathCost,
                           bool isSkipVia = false);
-  void modBlockedEdgesForMacroPin(frInstTerm* instTerm, dbTransform& xForm, bool isAddCost);
+  void modBlockedEdgesForMacroPin(frInstTerm* instTerm,
+                                  dbTransform& xForm,
+                                  bool isAddCost);
   void initMazeCost_ap();  // disable maze edge
   void initMazeCost_marker_route_queue(const frMarker& marker);
   void initMazeCost_marker_route_queue_addHistoryCost(const frMarker& marker);
@@ -885,6 +900,7 @@ class FlexDRWorker
       const std::set<FlexMazeIdx>& realPinApMazeIdx,
       std::map<FlexMazeIdx, frBox3D*>& mazeIdx2Taperbox,
       const set<FlexMazeIdx>& apMazeIdx);
+  bool addApPathSegs(const FlexMazeIdx& apIdx, drNet* net);
   void setNDRStyle(drNet* net,
                    frSegStyle& currStyle,
                    frMIdx startX,
@@ -961,6 +977,7 @@ class FlexDRWorker
 
   // end
   void cleanup();
+  void identifyCongestionLevel();
   void endGetModNets(std::set<frNet*, frBlockObjectComp>& modNets);
   void endRemoveNets(frDesign* design,
                      std::set<frNet*, frBlockObjectComp>& modNets,
@@ -1028,6 +1045,7 @@ class FlexDRWorker
     (ar) & bestMarkers_;
     (ar) & rq_;
     (ar) & gcWorker_;
+    (ar) & isCongested_;
   }
   friend class boost::serialization::access;
 };
