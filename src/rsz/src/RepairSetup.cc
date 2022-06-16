@@ -88,6 +88,7 @@ RepairSetup::RepairSetup(Resizer *resizer) :
   resizer_(resizer),
   resize_count_(0),
   inserted_buffer_count_(0),
+  rebuffer_net_count_(0),
   min_(MinMax::min()),
   max_(MinMax::max())
 {
@@ -104,12 +105,13 @@ RepairSetup::init()
 }
 
 void
-RepairSetup::repairSetup(float slack_margin,
+RepairSetup::repairSetup(float setup_slack_margin,
                          int max_passes)
 {
   init();
   inserted_buffer_count_ = 0;
   resize_count_ = 0;
+  resizer_->buffer_moved_into_core_ = false;
 
   Slack worst_slack;
   Vertex *worst_vertex;
@@ -120,7 +122,7 @@ RepairSetup::repairSetup(float slack_margin,
   int pass = 1;
   int decreasing_slack_passes = 0;
   resizer_->incrementalParasiticsBegin();
-  while (fuzzyLess(worst_slack, slack_margin)
+  while (fuzzyLess(worst_slack, setup_slack_margin)
          && pass <= max_passes) {
     PathRef worst_path = sta_->vertexWorstSlackPath(worst_vertex, max_);
     bool changed = repairSetup(worst_path, worst_slack);
@@ -165,7 +167,7 @@ RepairSetup::repairSetup(float slack_margin,
     logger_->info(RSZ, 40, "Inserted {} buffers.", inserted_buffer_count_);
   if (resize_count_ > 0)
     logger_->info(RSZ, 41, "Resized {} instances.", resize_count_);
-  if (fuzzyLess(worst_slack, slack_margin))
+  if (fuzzyLess(worst_slack, setup_slack_margin))
     logger_->warn(RSZ, 62, "Unable to repair all setup violations.");
   if (resizer_->overMaxArea())
     logger_->error(RSZ, 25, "max utilization reached.");

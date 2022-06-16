@@ -64,6 +64,7 @@ using utl::RSZ;
 using sta::Port;
 using sta::NetPinIterator;
 using sta::InstancePinIterator;
+using sta::NetConnectedPinIterator;
 using sta::NetIterator;
 using sta::Clock;
 using sta::INF;
@@ -75,6 +76,7 @@ RepairDesign::RepairDesign(Resizer *resizer) :
   db_network_(nullptr),
   resizer_(resizer),
   dbu_(0),
+  corner_(nullptr),
   resize_count_(0),
   inserted_buffer_count_(0),
   min_(MinMax::min()),
@@ -157,9 +159,7 @@ RepairDesign::repairDesign(double max_wire_length, // zero for none (meters)
     Net *net = network_->isTopLevelPort(drvr_pin)
       ? network_->net(network_->term(drvr_pin))
       : network_->net(drvr_pin);
-    const char *dbg_net_name = nullptr;
-    bool debug = net && dbg_net_name
-      && sta::stringEq(sdc_network_->pathName(net), dbg_net_name);
+    bool debug = (drvr_pin == resizer_->debug_pin_);
     if (debug)
       logger_->setDebugLevel(RSZ, "repair_net", 3);
     if (net
@@ -250,6 +250,7 @@ RepairDesign::repairNet(Net *net,
   inserted_buffer_count_ = 0;
   resize_count_ = 0;
   resizer_->resized_multi_output_insts_.clear();
+  resizer_->buffer_moved_into_core_ = false;
 
   sta_->checkSlewLimitPreamble();
   sta_->checkCapacitanceLimitPreamble();
@@ -309,16 +310,16 @@ RepairDesign::repairNet(Net *net,
 {
   // Hands off special nets.
   if (!db_network_->isSpecial(net)) {
-    const Corner *corner = sta_->cmdCorner();
-    BufferedNetPtr bnet = resizer_->makeBufferedNetSteiner(drvr_pin, corner);
-    if (bnet) {
-      debugPrint(logger_, RSZ, "repair_net", 1, "repair net {}",
-                 sdc_network_->pathName(drvr_pin));
-      // Resize the driver to normalize slews before repairing limit violations.
-      if (resize_drvr)
-        resize_count_ += resizer_->resizeToTargetSlew(drvr_pin);
-      // For tristate nets all we can do is resize the driver.
-      if (!resizer_->isTristateDriver(drvr_pin)) {
+    debugPrint(logger_, RSZ, "repair_net", 1, "repair net {}",
+               sdc_network_->pathName(drvr_pin));
+    // Resize the driver to normalize slews before repairing limit violations.
+    if (resize_drvr)
+      resize_count_ += resizer_->resizeToTargetSlew(drvr_pin);
+    // For tristate nets all we can do is resize the driver.
+    if (!resizer_->isTristateDriver(drvr_pin)) {
+      const Corner *corner = sta_->cmdCorner();
+      BufferedNetPtr bnet = resizer_->makeBufferedNetSteiner(drvr_pin, corner);
+      if (bnet) {
         resizer_->ensureWireParasitic(drvr_pin, net);
         graph_delay_calc_->findDelays(drvr);
 
@@ -769,8 +770,7 @@ RepairDesign::repairNetJunc(BufferedNetPtr bnet,
   BufferedNetPtr left = bnet->ref();
   int wire_length_left = 0;
   PinSeq loads_left;
-  if (left)
-    repairNet(left, level+1, wire_length_left, loads_left);
+  repairNet(left, level+1, wire_length_left, loads_left);
   float cap_left = left->cap();
   float fanout_left = left->fanout();
   float max_load_slew_left = left->maxLoadSlew();
@@ -778,8 +778,7 @@ RepairDesign::repairNetJunc(BufferedNetPtr bnet,
   BufferedNetPtr right = bnet->ref2();
   int wire_length_right = 0;
   PinSeq loads_right;
-  if (right)
-    repairNet(right, level+1, wire_length_right, loads_right);
+  repairNet(right, level+1, wire_length_right, loads_right);
   float cap_right = right->cap();
   float fanout_right = right->fanout();
   float max_load_slew_right = right->maxLoadSlew();
@@ -973,7 +972,7 @@ RepairDesign::makeRepeater(const char *where,
 
   // If the net is driven by an input port,
   // use the net as the repeater input net so the port stays connected to it.
-  if (resizer_->hasInputPort(net)
+  if (hasInputPort(net)
       || !have_output_port_load) {
     in_net = net;
     out_net = resizer_->makeUniqueNet();
@@ -1043,6 +1042,23 @@ RepairDesign::makeRepeater(const char *where,
   repeater_cap = resizer_->portCapacitance(buffer_input_port, corner_);
   repeater_fanout = resizer_->portFanoutLoad(buffer_input_port);
   repeater_max_slew = bufferInputMaxSlew(buffer_cell, corner_);
+}
+
+bool
+RepairDesign::hasInputPort(const Net *net)
+{
+  bool has_top_level_port = false;
+  NetConnectedPinIterator *pin_iter = network_->connectedPinIterator(net);
+  while (pin_iter->hasNext()) {
+    Pin *pin = pin_iter->next();
+    if (network_->isTopLevelPort(pin)
+        && network_->direction(pin)->isAnyInput()) {
+      has_top_level_port = true;
+      break;
+    }
+  }
+  delete pin_iter;
+  return has_top_level_port;
 }
 
 LibertyCell *

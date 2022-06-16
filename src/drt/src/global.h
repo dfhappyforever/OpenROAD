@@ -42,6 +42,7 @@ extern std::string DBPROCESSNODE;
 extern std::string OUT_MAZE_FILE;
 extern std::string DRC_RPT_FILE;
 extern std::string CMAP_FILE;
+extern std::string GUIDE_REPORT_FILE;
 // to be removed
 extern int OR_SEED;
 extern double OR_K;
@@ -69,8 +70,6 @@ extern std::string VIAINPIN_BOTTOMLAYER_NAME;
 extern std::string VIAINPIN_TOPLAYER_NAME;
 extern fr::frLayerNum VIAINPIN_BOTTOMLAYERNUM;
 extern fr::frLayerNum VIAINPIN_TOPLAYERNUM;
-extern fr::frLayerNum VIAONLY_STDCELLPIN_BOTTOMLAYERNUM;
-extern fr::frLayerNum VIAONLY_STDCELLPIN_TOPLAYERNUM;
 
 extern fr::frLayerNum VIA_ACCESS_LAYERNUM;
 

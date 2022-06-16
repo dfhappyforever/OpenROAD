@@ -217,7 +217,7 @@ public:
 
   ////////////////////////////////////////////////////////////////
 
-  void repairSetup(float slack_margin,
+  void repairSetup(double setup_margin,
                    int max_passes);
   // For testing.
   void repairSetup(Pin *drvr_pin);
@@ -227,13 +227,15 @@ public:
 
   ////////////////////////////////////////////////////////////////
 
-  void repairHold(float slack_margin,
+  void repairHold(double setup_margin,
+                  double hold_margin,
                   bool allow_setup_violations,
                   // Max buffer count as percent of design instance count.
                   float max_buffer_percent,
                   int max_passes);
   void repairHold(Pin *end_pin,
-                  float slack_margin,
+                  double setup_margin,
+                  double hold_margin,
                   bool allow_setup_violations,
                   float max_buffer_percent,
                   int max_passes);
@@ -254,6 +256,7 @@ public:
                        double wire_length, // meters
                        Delay &delay,
                        Slew &slew);
+  void setDebugPin(const Pin *pin);
 
   ////////////////////////////////////////////////////////////////
 
@@ -395,6 +398,12 @@ protected:
                     const RiseFall *rf,
                     float load_cap,
                     const DcalcAnalysisPt *dcalc_ap);
+  void bufferDelays(LibertyCell *buffer_cell,
+                    float load_cap,
+                    const DcalcAnalysisPt *dcalc_ap,
+                    // Return values.
+                    ArcDelay delays[RiseFall::index_count],
+                    Slew slews[RiseFall::index_count]);
   void cellWireDelay(LibertyPort *drvr_port,
                      LibertyPort *load_port,
                      double wire_length, // meters
@@ -415,7 +424,6 @@ protected:
   bool overMaxArea();
   bool bufferBetweenPorts(Instance *buffer);
   bool hasPort(const Net *net);
-  bool hasInputPort(const Net *net);
   Point location(Instance *inst);
   double area(dbMaster *master);
   double area(Cell *cell);
@@ -496,15 +504,17 @@ protected:
                       float &limit,
                       float &slack,
                       const Corner *&corner);
+  void warnBufferMovedIntoCore();
 
   ////////////////////////////////////////////////////////////////
   // Jounalling support for checkpointing and backing out changes
   // during repair timing.
   void journalBegin();
-  void journalInstReplaceCellBefore(Instance *inst);
-  void journalMakeBuffer(Instance *buffer);
+  void journalEnd();
   void journalRestore(int &resize_count,
                       int &inserted_buffer_count);
+  void journalInstReplaceCellBefore(Instance *inst);
+  void journalMakeBuffer(Instance *buffer);
 
   ////////////////////////////////////////////////////////////////
   // API for logic resynthesis
@@ -545,6 +555,7 @@ protected:
   dbDatabase *db_;
   dbBlock *block_;
   int dbu_;
+  const Pin *debug_pin_;
 
   Rect core_;
   bool core_exists_;
@@ -570,6 +581,7 @@ protected:
   int unique_inst_index_;
   int resize_count_;
   int inserted_buffer_count_;
+  bool buffer_moved_into_core_;
   // Slack map variables.
   float max_wire_length_;
   Map<const Net*, Slack> net_slack_map_;
