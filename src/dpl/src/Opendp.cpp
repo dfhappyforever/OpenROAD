@@ -89,7 +89,7 @@ int64_t
 Cell::area() const
 {
   dbMaster *master = db_inst_->getMaster();
-  return master->getWidth() * master->getHeight();
+  return int64_t(master->getWidth()) * master->getHeight();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -116,11 +116,25 @@ Group::Group() :
 }
 
 Opendp::Opendp() :
+  logger_(nullptr),
+  db_(nullptr),
+  block_(nullptr),
   pad_left_(0),
   pad_right_(0),
+  row_height_(0),
+  site_width_(0),
+  row_count_(0),
+  row_site_count_(0),
+  have_multi_row_cells_(false),
   max_displacement_x_(0),
   max_displacement_y_(0),
-  grid_(nullptr)
+  grid_(nullptr),
+  filler_count_(0),
+  have_fillers_(false),
+  hpwl_before_(0),
+  displacement_avg_(0),
+  displacement_sum_(0),
+  displacement_max_(0)
 {
   dummy_cell_.is_placed_ = true;
 }
@@ -195,6 +209,9 @@ Opendp::detailedPlacement(int max_displacement_x,
 {
   importDb();
 
+  if (have_fillers_)
+    logger_->warn(DPL, 37, "Use remove_fillers before detailed placement.");
+
   if (max_displacement_x == 0 || max_displacement_y == 0) {
     // defaults
     max_displacement_x_ = 500;
@@ -243,11 +260,15 @@ Opendp::reportLegalizationStats() const
   logger_->report("Placement Analysis");
   logger_->report("---------------------------------");
   logger_->report("total displacement   {:10.1f} u", dbuToMicrons(displacement_sum_));
+  logger_->metric("design__instance__displacement__total", dbuToMicrons(displacement_sum_));
   logger_->report("average displacement {:10.1f} u", dbuToMicrons(displacement_avg_));
+  logger_->metric("design__instance__displacement__mean", dbuToMicrons(displacement_avg_));
   logger_->report("max displacement     {:10.1f} u", dbuToMicrons(displacement_max_));
+  logger_->metric("design__instance__displacement__max", dbuToMicrons(displacement_max_));
   logger_->report("original HPWL        {:10.1f} u", dbuToMicrons(hpwl_before_));
   double hpwl_legal = hpwl();
   logger_->report("legalized HPWL       {:10.1f} u", dbuToMicrons(hpwl_legal));
+  logger_->metric("route__wirelength__estimated", dbuToMicrons(hpwl_legal));
   int hpwl_delta = (hpwl_before_ == 0.0)
     ? 0.0
     : round((hpwl_legal - hpwl_before_) / hpwl_before_ * 100);
@@ -515,7 +536,7 @@ Opendp::gridHeight(const Cell *cell) const
 int64_t
 Opendp::paddedArea(const Cell *cell) const
 {
-  return paddedWidth(cell) * cell->height_;
+  return int64_t(paddedWidth(cell)) * cell->height_;
 }
 
 // Callers should probably be using gridPaddedWidth.

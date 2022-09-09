@@ -133,7 +133,6 @@ public:
 };
 
 typedef Map<LibertyCell*, float> CellTargetLoadMap;
-typedef Vector<Vector<Pin*>> GroupedPins;
 typedef array<Slew, RiseFall::index_count> TgtSlews;
 
 enum class ParasiticsSrc { none, placement, global_routing };
@@ -199,8 +198,15 @@ public:
   // Maximum utilizable area (core area * utilization)
   double maxArea() const;
 
-  void setDontUse(LibertyCellSeq *dont_use);  
+  void setDontUse(LibertyCell *cell,
+                  bool dont_use);
   bool dontUse(LibertyCell *cell);
+  void setDontTouch(const Instance *inst,
+                    bool dont_touch);
+  bool dontTouch(const Instance *inst);
+  void setDontTouch(const Net *net,
+                    bool dont_touch);
+  bool dontTouch(const Net *net);
 
   void setMaxUtilization(double max_utilization);
   // Remove all buffers from the netlist.
@@ -505,6 +511,7 @@ protected:
                       float &slack,
                       const Corner *&corner);
   void warnBufferMovedIntoCore();
+  bool isLogicStdCell(const Instance *inst);
 
   ////////////////////////////////////////////////////////////////
   // Jounalling support for checkpointing and backing out changes
@@ -523,6 +530,7 @@ protected:
   VertexSet findFanouts(VertexSet &roots);
   bool isRegOutput(Vertex *vertex);
   bool isRegister(Vertex *vertex);
+  ////////////////////////////////////////////////////////////////
 
   Logger *logger() const { return logger_; }
 
@@ -589,7 +597,8 @@ protected:
 
   // Journal to roll back changes (OpenDB not up to the task).
   Map<Instance*, LibertyCell*> resized_inst_map_;
-  InstanceSet inserted_buffers_;
+  InstanceSeq inserted_buffers_;
+  InstanceSet inserted_buffer_set_;
 
   // "factor debatable"
   static constexpr float tgt_slew_load_cap_factor = 10.0;

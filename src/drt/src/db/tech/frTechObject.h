@@ -39,6 +39,10 @@
 #include "db/tech/frViaRuleGenerate.h"
 #include "frBaseTypes.h"
 #include "utl/Logger.h"
+#include <set>
+namespace odb {
+  class dbTechLayer;
+}
 namespace fr {
 namespace io {
 class Parser;
@@ -87,6 +91,11 @@ class frTechObject
   {
     return viaRuleGenerates;
   }
+  bool hasUnidirectionalLayer(odb::dbTechLayer* dbLayer) const
+  {
+    return unidirectional_layers_.find(dbLayer)
+           != unidirectional_layers_.end();
+  }
 
   // setters
   void setDBUPerUU(frUInt4 uIn) { dbUnit = uIn; }
@@ -123,6 +132,11 @@ class frTechObject
   void addUConstraint(std::unique_ptr<frConstraint> in)
   {
     in->setId(uConstraints.size());
+    auto type = in->typeId();
+    if (type == frConstraintTypeEnum::frcMinStepConstraint ||
+        type == frConstraintTypeEnum::frcLef58MinStepConstraint) {
+      hasCornerSpacingConstraint_ = true;
+    }
     uConstraints.push_back(std::move(in));
   }
   frConstraint* getConstraint(int idx)
@@ -130,6 +144,10 @@ class frTechObject
     if (idx < uConstraints.size())
       return uConstraints[idx].get();
     return nullptr;
+  }
+  void setUnidirectionalLayer(odb::dbTechLayer* dbLayer)
+  {
+    unidirectional_layers_.insert(dbLayer);
   }
 
   // forbidden length table related
@@ -253,6 +271,7 @@ class frTechObject
   friend class io::Parser;
   void setVia2ViaMinStep(bool in) { hasVia2viaMinStep_ = in; }
   bool hasVia2ViaMinStep() const { return hasVia2viaMinStep_; }
+  bool hasCornerSpacingConstraint() const { return hasCornerSpacingConstraint_; }
 
   bool isHorizontalLayer(frLayerNum l)
   {
@@ -336,6 +355,9 @@ class frTechObject
   // for up via
   ByLayer<std::array<bool, 4>> viaForbiddenThrough;
   bool hasVia2viaMinStep_ = false;
+  bool hasCornerSpacingConstraint_ = false;
+  // unidirectional layers
+  std::set<odb::dbTechLayer*> unidirectional_layers_;
 
   // forbidden length table related utilities
   int getTableEntryIdx(bool in1, bool in2)

@@ -15,12 +15,12 @@
 Net clk
   clkbuf_0_clk/A (sky130_fd_sc_hs__clkbuf_1)
     met2
-    PAR:  450.51* Ratio:  400.00 (S.Area)
+    PAR:  451.78* Ratio:  400.00 (S.Area)
 
 
 [INFO ANT-0002] Found 1 net violations.
 [INFO ANT-0001] Found 1 pin violations.
-[INFO GRT-0012] Antenna violations: 1
+[INFO GRT-0012] Found 1 antenna violations.
 [INFO GRT-0015] Inserted 1 diodes.
 [INFO ANT-0002] Found 0 net violations.
 [INFO ANT-0001] Found 0 pin violations.

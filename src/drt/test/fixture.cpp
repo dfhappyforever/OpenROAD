@@ -52,13 +52,11 @@ void Fixture::addLayer(frTechObject* tech,
 {
   auto layer = std::make_unique<frLayer>();
   layer->setLayerNum(tech->getTopLayerNum() + 1);
-  layer->setName(name);
-  layer->setType(type);
-  layer->setDir(dir);
-
+  layer->setDbLayer(odb::dbTechLayer::create(db_tech, name, type));
+  layer->getDbLayer()->setDirection(dir);
   layer->setWidth(100);
   layer->setMinWidth(100);
-  layer->setPitch(200);
+  layer->getDbLayer()->setPitch(200);
 
   // These constraints are mandatory
   if (type == dbTechLayerType::ROUTING) {
@@ -88,6 +86,8 @@ void Fixture::setupTech(frTechObject* tech)
   tech->setManufacturingGrid(10);
   tech->setDBUPerUU(1000);
 
+  auto db = odb::dbDatabase::create();
+  db_tech = odb::dbTech::create(db);
   // TR assumes that masterslice always exists
   addLayer(tech, "masterslice", dbTechLayerType::MASTERSLICE);
   addLayer(tech, "v0", dbTechLayerType::CUT);
@@ -387,6 +387,7 @@ frSpacingTableTwConstraint* Fixture::makeSpacingTableTwConstraint(
   unique_ptr<frConstraint> uCon
       = make_unique<frSpacingTableTwConstraint>(rows, spacingTbl);
   auto rptr = static_cast<frSpacingTableTwConstraint*>(uCon.get());
+  rptr->setLayer(layer);
   tech->addUConstraint(std::move(uCon));
   layer->setMinSpacing(rptr);
   return rptr;
@@ -422,7 +423,9 @@ frLef58SpacingEndOfLineConstraint* Fixture::makeLef58SpacingEolConstraint(
     frLayerNum layer_num,
     frCoord space,
     frCoord width,
-    frCoord within)
+    frCoord within,
+    frCoord end_prl_spacing,
+    frCoord end_prl)
 {
   auto uCon = std::make_unique<frLef58SpacingEndOfLineConstraint>();
   auto con = uCon.get();
@@ -430,6 +433,7 @@ frLef58SpacingEndOfLineConstraint* Fixture::makeLef58SpacingEolConstraint(
   auto withinCon = std::make_shared<frLef58SpacingEndOfLineWithinConstraint>();
   con->setWithinConstraint(withinCon);
   withinCon->setEolWithin(within);
+  withinCon->setEndPrl(end_prl_spacing, end_prl);
   frTechObject* tech = design->getTech();
   frLayer* layer = tech->getLayer(layer_num);
   layer->addLef58SpacingEndOfLineConstraint(con);

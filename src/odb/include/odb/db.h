@@ -141,6 +141,7 @@ class dbTechLayerArraySpacingRule;
 class dbTechLayerWidthTableRule;
 class dbTechLayerMinCutRule;
 class dbGuide;
+class dbMetalWidthViaMap;
 class dbModule;
 class dbModInst;
 class dbGroup;
@@ -511,6 +512,11 @@ class dbBox : public dbObject
   void getViaXY(int& x, int& y);
 
   ///
+  /// Return the placed location of this via.
+  ///
+  Point getViaXY();
+
+  ///
   /// Get the box bounding points.
   ///
   Rect getBox();
@@ -753,6 +759,11 @@ class dbSBox : public dbBox
   /// This function translates any dbBox whichs is part of a block
   ///
   static dbSBox* getSBox(dbBlock* block, uint oid);
+
+  ///
+  /// Destroy a SBox.
+  ///
+  static void destroy(dbSBox* box);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2095,17 +2106,12 @@ class dbNet : public dbObject
   bool isSpef();
 
   ///
-  /// Set/Reset the size-only flag
-  ///
-  void setSizeOnly(bool v);
-
-  ///
-  /// Returns true if the size-only flag is set.
-  ///
-  bool isSizeOnly();
-
-  ///
   /// Set/Reset the don't-touch flag
+  ///
+  /// Setting this implies:
+  /// - The net can't be destroyed
+  /// - The net can't have any bterm or iterms connected or disconnected
+  /// - The net CAN be routed or unrouted (wire or swire)
   ///
   void setDoNotTouch(bool v);
 
@@ -2806,6 +2812,12 @@ class dbInst : public dbObject
   void getLocation(int& x, int& y) const;
 
   ///
+  /// This method returns the lower-left corner
+  /// of the bounding box of this instance.
+  ///
+  Point getLocation() const;
+
+  ///
   /// This method sets the lower-left corner
   /// of the bounding box of this instance.
   ///
@@ -2933,22 +2945,20 @@ class dbInst : public dbObject
   ///
   /// Set/Reset the don't-touch flag
   ///
+  /// Setting this implies:
+  /// - The instance can't be destroyed
+  /// - The instance can't be resized (ie swapMaster)
+  /// - The associated iterms can't be connected or disconnected
+  /// - The parent module can't be changed
+  /// - The instance CAN be moved, have its orientation changed, or be
+  ///   placed or unplaced
+  ///
   void setDoNotTouch(bool v);
 
   ///
   /// Returns true if the don't-touch flag is set.
   ///
   bool isDoNotTouch();
-
-  ///
-  /// Set/Reset the don't-size flag
-  ///
-  void setDoNotSize(bool v);
-
-  ///
-  /// Returns true if the don't-size flag is set.
-  ///
-  bool isDoNotSize();
 
   ///
   /// Get the block of this instance.
@@ -5872,6 +5882,11 @@ class dbTech : public dbObject
   ///
   ///
   ///
+  dbSet<dbMetalWidthViaMap> getMetalWidthViaMap();
+
+  ///
+  ///
+  ///
   dbTechViaRule* findViaRule(const char* name);
 
   ///
@@ -7031,10 +7046,8 @@ class dbTechLayer : public dbObject
 
   /// Get the collection of spacing rules for the object, assuming
   /// coding in LEF 5.4 format.
-  /// Return false if rules not encoded in this format.
-  /// Contents of sp_rules are undefined if function returns false.
   ///
-  bool getV54SpacingRules(dbSet<dbTechLayerSpacingRule>& sp_rules) const;
+  dbSet<dbTechLayerSpacingRule> getV54SpacingRules() const;
 
   ///
   /// API for version 5.5 spacing rules, expressed as a 2D matrix with
@@ -7056,8 +7069,7 @@ class dbTechLayer : public dbObject
   void initV55SpacingTable(uint numrows, uint numcols);
   void addV55SpacingTableEntry(uint inrow, uint incol, uint spacing);
 
-  bool getV55InfluenceRules(std::vector<dbTechV55InfluenceEntry*>& inf_tbl);
-  dbSet<dbTechV55InfluenceEntry> getV55InfluenceEntries();
+  dbSet<dbTechV55InfluenceEntry> getV55InfluenceRules();
 
   ///
   /// API for version 5.7 two widths spacing rules, expressed as a 2D matrix
@@ -8804,6 +8816,54 @@ class dbGuide : public dbObject
   static void destroy(dbGuide* guide);
 
   // User Code End dbGuide
+};
+
+class dbMetalWidthViaMap : public dbObject
+{
+ public:
+  // User Code Begin dbMetalWidthViaMapEnums
+  // User Code End dbMetalWidthViaMapEnums
+  void setViaCutClass(bool via_cut_class);
+
+  bool isViaCutClass() const;
+
+  void setCutLayer(dbTechLayer* cut_layer);
+
+  void setBelowLayerWidthLow(int below_layer_width_low);
+
+  int getBelowLayerWidthLow() const;
+
+  void setBelowLayerWidthHigh(int below_layer_width_high);
+
+  int getBelowLayerWidthHigh() const;
+
+  void setAboveLayerWidthLow(int above_layer_width_low);
+
+  int getAboveLayerWidthLow() const;
+
+  void setAboveLayerWidthHigh(int above_layer_width_high);
+
+  int getAboveLayerWidthHigh() const;
+
+  void setViaName(std::string via_name);
+
+  std::string getViaName() const;
+
+  void setPgVia(bool pg_via);
+
+  bool isPgVia() const;
+
+  // User Code Begin dbMetalWidthViaMap
+
+  dbTechLayer* getCutLayer() const;
+
+  static dbMetalWidthViaMap* create(dbTech* tech);
+
+  static void destroy(dbMetalWidthViaMap* via_map);
+
+  static dbMetalWidthViaMap* getMetalWidthViaMap(dbTech* tech, uint dbid);
+
+  // User Code End dbMetalWidthViaMap
 };
 
 class dbModule : public dbObject

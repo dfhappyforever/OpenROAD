@@ -364,7 +364,7 @@ OpenRoad::writeDef(const char *filename, string version)
 
 void
 OpenRoad::writeCdl(const char *outFilename,
-                   const char *mastersFilename,
+                   const std::vector<const char*>& mastersFilenames,
                    bool includeFillers)
 {
   odb::dbChip *chip = db_->getChip();
@@ -374,7 +374,7 @@ OpenRoad::writeCdl(const char *outFilename,
       odb::cdl::writeCdl(getLogger(),
                          block,
                          outFilename,
-                         mastersFilename,
+                         mastersFilenames,
                          includeFillers);
     }
   }
@@ -419,6 +419,14 @@ OpenRoad::linkDesign(const char *design_name)
 
 {
   dbLinkDesign(design_name, verilog_network_, db_, logger_);
+  for (Observer* observer : observers_) {
+    observer->postReadDb(db_);
+  }
+}
+
+void
+OpenRoad::designCreated()
+{
   for (Observer* observer : observers_) {
     observer->postReadDb(db_);
   }

@@ -43,26 +43,16 @@
 using namespace std;
 using namespace fr;
 
-int defdist(odb::dbBlock* block, int x)
-{
-  return x * (double) block->getDefUnits()
-         / (double) block->getDbUnitsPerMicron();
-}
-
 void io::Parser::setDieArea(odb::dbBlock* block)
 {
   vector<frBoundary> bounds;
   frBoundary bound;
   vector<Point> points;
   odb::Rect box = block->getDieArea();
-  points.push_back(
-      Point(defdist(block, box.xMin()), defdist(block, box.yMin())));
-  points.push_back(
-      Point(defdist(block, box.xMax()), defdist(block, box.yMax())));
-  points.push_back(
-      Point(defdist(block, box.xMax()), defdist(block, box.yMin())));
-  points.push_back(
-      Point(defdist(block, box.xMin()), defdist(block, box.yMax())));
+  points.push_back(Point(box.xMin(), box.yMin()));
+  points.push_back(Point(box.xMax(), box.yMax()));
+  points.push_back(Point(box.xMax(), box.yMin()));
+  points.push_back(Point(box.xMin(), box.yMax()));
   bound.setPoints(points);
   bounds.push_back(bound);
   tmpBlock->setDBUPerUU(block->getDbUnitsPerMicron());
@@ -128,8 +118,6 @@ void io::Parser::setInsts(odb::dbBlock* block)
 
     int x, y;
     inst->getLocation(x, y);
-    x = defdist(block, x);
-    y = defdist(block, y);
     tmpInst->setOrigin(Point(x, y));
     tmpInst->setOrient(inst->getOrient());
     int numInstTerms = 0;
@@ -228,20 +216,20 @@ void io::Parser::setVias(odb::dbBlock* block)
         topLayerNum = tech->name2layer.find(params.getTopLayer()->getName())
                           ->second->getLayerNum();
 
-      int xSize = defdist(block, params.getXCutSize());
-      int ySize = defdist(block, params.getYCutSize());
-      int xCutSpacing = defdist(block, params.getXCutSpacing());
-      int yCutSpacing = defdist(block, params.getYCutSpacing());
-      int xOffset = defdist(block, params.getXOrigin());
-      int yOffset = defdist(block, params.getYOrigin());
-      int xTopEnc = defdist(block, params.getXTopEnclosure());
-      int yTopEnc = defdist(block, params.getYTopEnclosure());
-      int xBotEnc = defdist(block, params.getXBottomEnclosure());
-      int yBotEnc = defdist(block, params.getYBottomEnclosure());
-      int xTopOffset = defdist(block, params.getXTopOffset());
-      int yTopOffset = defdist(block, params.getYTopOffset());
-      int xBotOffset = defdist(block, params.getXBottomOffset());
-      int yBotOffset = defdist(block, params.getYBottomOffset());
+      int xSize = params.getXCutSize();
+      int ySize = params.getYCutSize();
+      int xCutSpacing = params.getXCutSpacing();
+      int yCutSpacing = params.getYCutSpacing();
+      int xOffset = params.getXOrigin();
+      int yOffset = params.getYOrigin();
+      int xTopEnc = params.getXTopEnclosure();
+      int yTopEnc = params.getYTopEnclosure();
+      int xBotEnc = params.getXBottomEnclosure();
+      int yBotEnc = params.getYBottomEnclosure();
+      int xTopOffset = params.getXTopOffset();
+      int yTopOffset = params.getYTopOffset();
+      int xBotOffset = params.getXBottomOffset();
+      int yBotOffset = params.getYBottomOffset();
 
       frCoord currX = 0;
       frCoord currY = 0;
@@ -313,10 +301,8 @@ void io::Parser::setVias(odb::dbBlock* block)
       for (auto& [layerNum, boxes] : lNum2Int) {
         for (auto box : boxes) {
           unique_ptr<frRect> pinFig = make_unique<frRect>();
-          pinFig->setBBox(Rect(defdist(block, box->xMin()),
-                               defdist(block, box->yMin()),
-                               defdist(block, box->xMax()),
-                               defdist(block, box->yMax())));
+          pinFig->setBBox(
+              Rect(box->xMin(), box->yMin(), box->xMax(), box->yMax()));
           pinFig->setLayerNum(layerNum);
           switch (cnt) {
             case 0:
@@ -409,7 +395,6 @@ void io::Parser::getSBoxCoords(odb::dbSBox* box,
                                frCoord& endY,
                                frCoord& width)
 {
-  auto block = box->getDb()->getChip()->getBlock();
   int x1 = box->xMin();
   int y1 = box->yMin();
   int x2 = box->xMax();
@@ -480,11 +465,11 @@ void io::Parser::getSBoxCoords(odb::dbSBox* box,
       logger->error(DRT, 103, "Unknown direction.");
       break;
   }
-  beginX = defdist(block, x1);
-  endX = defdist(block, x2);
-  beginY = defdist(block, y1);
-  endY = defdist(block, y2);
-  width = defdist(block, w);
+  beginX = x1;
+  endX = x2;
+  beginY = y1;
+  endY = y2;
+  width = w;
 }
 
 void io::Parser::setNets(odb::dbBlock* block)
@@ -635,10 +620,10 @@ void io::Parser::setNets(odb::dbBlock* block)
                 decoder.getPoint(endX, endY);
                 hasEndPoint = true;
               }
-              beginX = defdist(block, beginX);
-              beginY = defdist(block, beginY);
-              endX = defdist(block, endX);
-              endY = defdist(block, endY);
+              beginX = beginX;
+              beginY = beginY;
+              endX = endX;
+              endY = endY;
               break;
             case odb::dbWireDecoder::POINT_EXT:
               if (!hasBeginPoint) {
@@ -648,12 +633,12 @@ void io::Parser::setNets(odb::dbBlock* block)
                 decoder.getPoint(endX, endY, endExt);
                 hasEndPoint = true;
               }
-              beginX = defdist(block, beginX);
-              beginY = defdist(block, beginY);
-              beginExt = defdist(block, beginExt);
-              endX = defdist(block, endX);
-              endY = defdist(block, endY);
-              endExt = defdist(block, endExt);
+              beginX = beginX;
+              beginY = beginY;
+              beginExt = beginExt;
+              endX = endX;
+              endY = endY;
+              endExt = endExt;
 
               break;
             case odb::dbWireDecoder::VIA:
@@ -664,10 +649,10 @@ void io::Parser::setNets(odb::dbBlock* block)
               break;
             case odb::dbWireDecoder::RECT:
               decoder.getRect(left, bottom, right, top);
-              left = defdist(block, left);
-              bottom = defdist(block, bottom);
-              right = defdist(block, right);
-              top = defdist(block, top);
+              left = left;
+              bottom = bottom;
+              right = right;
+              top = top;
               hasRect = true;
               break;
             case odb::dbWireDecoder::ITERM:
@@ -801,7 +786,7 @@ void io::Parser::setNets(odb::dbBlock* block)
             else {
               int x, y;
               box->getViaXY(x, y);
-              Point p(defdist(block, x), defdist(block, y));
+              Point p(x, y);
               auto viaDef = tech->name2via[viaName];
               auto tmpP = make_unique<frVia>(viaDef);
               tmpP->setOrigin(p);
@@ -910,10 +895,10 @@ void io::Parser::setBTerms(odb::dbBlock* block)
                         box->getTechLayer()->getName());
         frLayerNum layerNum
             = tech->name2layer[box->getTechLayer()->getName()]->getLayerNum();
-        frCoord xl = defdist(block, box->xMin());
-        frCoord yl = defdist(block, box->yMin());
-        frCoord xh = defdist(block, box->xMax());
-        frCoord yh = defdist(block, box->yMax());
+        frCoord xl = box->xMin();
+        frCoord yl = box->yMin();
+        frCoord xh = box->xMax();
+        frCoord yh = box->yMax();
         unique_ptr<frRect> pinFig = make_unique<frRect>();
         pinFig->setBBox(Rect(xl, yl, xh, yh));
         pinFig->addToPin(pinIn.get());
@@ -1137,14 +1122,6 @@ void io::Parser::setRoutingLayerProperties(odb::dbTechLayer* layer,
                    layer->getName());
       continue;
     }
-    if (rule->isEndPrlSpacingValid()) {
-      logger->warn(utl::DRT,
-                   402,
-                   "Unsupported LEF58_SPACING rule with option ENDPRLSPACING "
-                   "for layer {}.",
-                   layer->getName());
-      continue;
-    }
     if (rule->isEqualRectWidthValid()) {
       logger->warn(utl::DRT,
                    403,
@@ -1164,6 +1141,9 @@ void io::Parser::setRoutingLayerProperties(odb::dbTechLayer* layer,
     con->setWithinConstraint(within);
     if (rule->isOppositeWidthValid()) {
       within->setOppositeWidth(rule->getOppositeWidth());
+    }
+    if (rule->isEndPrlSpacingValid()) {
+      within->setEndPrl(rule->getEndPrlSpace(), rule->getEndPrl());
     }
     within->setEolWithin(rule->getEolWithin());
     if (rule->isWrongDirWithinValid()) {
@@ -1237,6 +1217,8 @@ void io::Parser::setRoutingLayerProperties(odb::dbTechLayer* layer,
     tmpLayer->addLef58SpacingEndOfLineConstraint(con.get());
     tech->addUConstraint(std::move(con));
   }
+  if (tech->hasUnidirectionalLayer(layer))
+    tmpLayer->setUnidirectional(true);
   if (layer->isRectOnly()) {
     auto rectOnlyConstraint = make_unique<frLef58RectOnlyConstraint>(
         layer->isRectOnlyExceptNonCorePins());
@@ -1491,21 +1473,23 @@ void io::Parser::addDefaultMasterSliceLayer()
 {
   unique_ptr<frLayer> uMSLayer = make_unique<frLayer>();
   auto tmpMSLayer = uMSLayer.get();
+  if (masterSliceLayer == nullptr)
+  { 
+    tmpMSLayer->setFakeMasterslice(true);
+  } else {
+    tmpMSLayer->setDbLayer(masterSliceLayer);
+  }
   tmpMSLayer->setLayerNum(readLayerCnt++);
-  tmpMSLayer->setName(masterSliceLayerName);
   tech->addLayer(std::move(uMSLayer));
-  tmpMSLayer->setType(dbTechLayerType::MASTERSLICE);
 }
 
 void io::Parser::addDefaultCutLayer()
 {
-  std::string viaLayerName("FR_VIA");
   unique_ptr<frLayer> uCutLayer = make_unique<frLayer>();
   auto tmpCutLayer = uCutLayer.get();
+  tmpCutLayer->setFakeCut(true);
   tmpCutLayer->setLayerNum(readLayerCnt++);
-  tmpCutLayer->setName(viaLayerName);
   tech->addLayer(std::move(uCutLayer));
-  tmpCutLayer->setType(dbTechLayerType::CUT);
 }
 
 void io::Parser::addRoutingLayer(odb::dbTechLayer* layer)
@@ -1518,8 +1502,8 @@ void io::Parser::addRoutingLayer(odb::dbTechLayer* layer)
   }
   unique_ptr<frLayer> uLayer = make_unique<frLayer>();
   auto tmpLayer = uLayer.get();
+  tmpLayer->setDbLayer(layer);
   tmpLayer->setLayerNum(readLayerCnt++);
-  tmpLayer->setName(layer->getName());
   tech->addLayer(std::move(uLayer));
 
   tmpLayer->setWidth(layer->getWidth());
@@ -1536,14 +1520,6 @@ void io::Parser::addRoutingLayer(odb::dbTechLayer* layer)
   tmpLayer->setMinWidthConstraint(minWidthConstraint.get());
   tech->addUConstraint(std::move(minWidthConstraint));
 
-  tmpLayer->setType(dbTechLayerType::ROUTING);
-  if (layer->getDirection() == odb::dbTechLayerDir::HORIZONTAL)
-    tmpLayer->setDir(dbTechLayerDir::HORIZONTAL);
-  else if (layer->getDirection() == odb::dbTechLayerDir::VERTICAL)
-    tmpLayer->setDir(dbTechLayerDir::VERTICAL);
-
-  tmpLayer->setPitch(layer->getPitch());
-  tmpLayer->setNumMasks(layer->getNumMasks());
 
   // Add off grid rule for every layer
   auto recheckConstraint = make_unique<frRecheckConstraint>();
@@ -1634,9 +1610,7 @@ void io::Parser::addRoutingLayer(odb::dbTechLayer* layer)
   }
 
   // read spacing rule
-  odb::dbSet<odb::dbTechLayerSpacingRule> sp_rules;
-  layer->getV54SpacingRules(sp_rules);
-  for (auto rule : sp_rules) {
+  for (auto rule : layer->getV54SpacingRules()) {
     frCoord minSpacing = rule->getSpacing();
     frUInt4 _eolWidth = 0, _eolWithin = 0, _parSpace = 0, _parWithin = 0;
     bool hasSpacingParellelEdge = false;
@@ -1701,12 +1675,12 @@ void io::Parser::addRoutingLayer(odb::dbTechLayer* layer)
       tmpLayer->setMinSpacing(rptr);
     }
   }
-  if (!layer->getV55InfluenceEntries().empty()) {
+  if (!layer->getV55InfluenceRules().empty()) {
     frCollection<frCoord> widthTbl;
     frCollection<std::pair<frCoord, frCoord>> valTbl;
-    for (auto entry : layer->getV55InfluenceEntries()) {
+    for (auto rule : layer->getV55InfluenceRules()) {
       frUInt4 width, within, spacing;
-      entry->getV55InfluenceEntry(width, within, spacing);
+      rule->getV55InfluenceEntry(width, within, spacing);
       widthTbl.push_back(width);
       valTbl.push_back({within, spacing});
     }
@@ -1774,6 +1748,7 @@ void io::Parser::addRoutingLayer(odb::dbTechLayer* layer)
     unique_ptr<frConstraint> uCon
         = make_unique<frSpacingTableTwConstraint>(rowVals, tblVals);
     auto rptr = static_cast<frSpacingTableTwConstraint*>(uCon.get());
+    rptr->setLayer(tmpLayer);
     tech->addUConstraint(std::move(uCon));
     if (tmpLayer->getMinSpacing())
       logger->warn(
@@ -1826,9 +1801,8 @@ void io::Parser::addCutLayer(odb::dbTechLayer* layer)
 
   unique_ptr<frLayer> uLayer = make_unique<frLayer>();
   auto tmpLayer = uLayer.get();
+  tmpLayer->setDbLayer(layer);
   tmpLayer->setLayerNum(readLayerCnt++);
-  tmpLayer->setName(layer->getName());
-  tmpLayer->setType(dbTechLayerType::CUT);
   tech->addLayer(std::move(uLayer));
 
   auto shortConstraint = make_unique<frShortConstraint>();
@@ -1837,9 +1811,7 @@ void io::Parser::addCutLayer(odb::dbTechLayer* layer)
   tech->addUConstraint(std::move(shortConstraint));
 
   // read spacing constraint
-  odb::dbSet<odb::dbTechLayerSpacingRule> spRules;
-  layer->getV54SpacingRules(spRules);
-  for (odb::dbTechLayerSpacingRule* rule : spRules) {
+  for (odb::dbTechLayerSpacingRule* rule : layer->getV54SpacingRules()) {
     std::unique_ptr<frCutSpacingConstraint> cutSpacingConstraint;
     frCoord cutArea = rule->getCutArea();
     frCoord cutSpacing = rule->getSpacing();
@@ -1899,12 +1871,13 @@ void io::Parser::addMasterSliceLayer(odb::dbTechLayer* layer)
   if (layer->getLef58Type() != odb::dbTechLayer::LEF58_TYPE::NWELL
       && layer->getLef58Type() != odb::dbTechLayer::LEF58_TYPE::PWELL
       && layer->getLef58Type() != odb::dbTechLayer::LEF58_TYPE::DIFFUSION)
-    masterSliceLayerName = string(layer->getName());
+    masterSliceLayer = layer;
+
 }
 
 void io::Parser::setLayers(odb::dbTech* tech)
 {
-  masterSliceLayerName = "FR_MASTERSLICE";
+  masterSliceLayer = nullptr;
   for (auto layer : tech->getLayers()) {
     switch (layer->getType().getValue()) {
       case odb::dbTechLayerType::ROUTING:
@@ -2257,8 +2230,7 @@ void io::Parser::setTechVias(odb::dbTech* _tech)
     frLef58CutClass* cutClass = nullptr;
 
     for (auto& cutFig : viaDef->getCutFigs()) {
-      Rect box;
-      cutFig->getBBox(box);
+      Rect box = cutFig->getBBox();
       auto width = box.minDXDY();
       auto length = box.maxDXDY();
       cutClassIdx = cutLayer->getCutClassIdx(width, length);
@@ -2318,8 +2290,7 @@ void io::Parser::readDb()
 
   if (VERBOSE > 0) {
     logger->report("");
-    Rect dieBox;
-    design->getTopBlock()->getDieBox(dieBox);
+    Rect dieBox = design->getTopBlock()->getDieBox();
     logger->report("Design:                   {}",
                    design->getTopBlock()->getName());
     // TODO Rect can't be logged directly
@@ -2339,6 +2310,8 @@ void io::Parser::readDb()
     logger->report("Number of nets:           {}",
                    design->getTopBlock()->nets_.size());
     logger->report("");
+    logger->metric("route__net", design->getTopBlock()->nets_.size());
+    logger->metric("route__net__special", design->getTopBlock()->snets_.size());
   }
 }
 
@@ -2423,9 +2396,6 @@ void io::Writer::fillConnFigs_net(frNet* net, bool isTA)
     for (auto& shape : net->getShapes()) {
       if (shape->typeId() == frcPathSeg) {
         auto pathSeg = *static_cast<frPathSeg*>(shape.get());
-        Point start, end;
-        pathSeg.getPoints(start, end);
-
         connFigs[netName].push_back(make_shared<frPathSeg>(pathSeg));
       }
     }
@@ -2451,14 +2421,13 @@ void io::Writer::splitVia_helper(
       && mergedPathSegs.at(layerNum).at(isH).find(trackLoc)
              != mergedPathSegs.at(layerNum).at(isH).end()) {
     for (auto& pathSeg : mergedPathSegs.at(layerNum).at(isH).at(trackLoc)) {
-      Point begin, end;
-      pathSeg->getPoints(begin, end);
+      auto [begin, end] = pathSeg->getPoints();
       if ((isH == 0 && (begin.x() < x) && (end.x() > x))
           || (isH == 1 && (begin.y() < y) && (end.y() > y))) {
-        frSegStyle style1, style2, style_default;
-        pathSeg->getStyle(style1);
-        pathSeg->getStyle(style2);
-        style_default = getTech()->getLayer(layerNum)->getDefaultSegStyle();
+        frSegStyle style1 = pathSeg->getStyle();
+        frSegStyle style2 = pathSeg->getStyle();
+        frSegStyle style_default
+            = getTech()->getLayer(layerNum)->getDefaultSegStyle();
         shared_ptr<frPathSeg> newPathSeg = make_shared<frPathSeg>(*pathSeg);
         pathSeg->setPoints(begin, Point(x, y));
         style1.setEndStyle(style_default.getEndStyle(),
@@ -2490,8 +2459,7 @@ void io::Writer::mergeSplitConnFigs(list<shared_ptr<frConnFig>>& connFigs)
   for (auto& connFig : connFigs) {
     if (connFig->typeId() == frcPathSeg) {
       auto pathSeg = dynamic_pointer_cast<frPathSeg>(connFig);
-      Point begin, end;
-      pathSeg->getPoints(begin, end);
+      auto [begin, end] = pathSeg->getPoints();
       frLayerNum layerNum = pathSeg->getLayerNum();
       if (begin == end) {
         // std::cout << "Warning: 0 length connFig\n";
@@ -2510,8 +2478,7 @@ void io::Writer::mergeSplitConnFigs(list<shared_ptr<frConnFig>>& connFigs)
     } else if (connFig->typeId() == frcVia) {
       auto via = dynamic_pointer_cast<frVia>(connFig);
       auto cutLayerNum = via->getViaDef()->getCutLayerNum();
-      Point viaPoint;
-      via->getOrigin(viaPoint);
+      Point viaPoint = via->getOrigin();
       viaMergeMap[make_tuple(viaPoint.x(), viaPoint.y(), cutLayerNum)] = via;
       // cout <<"found via" <<endl;
     }
@@ -2531,7 +2498,6 @@ void io::Writer::mergeSplitConnFigs(list<shared_ptr<frConnFig>>& connFigs)
     int cnt = 0;
     shared_ptr<frPathSeg> newPathSeg;
     frSegStyle style;
-    Point begin, end;
     for (auto& it2 : it1.second) {
       // cout <<"coord " <<coord <<endl;
       for (auto& pathSegTuple : it2.second) {
@@ -2546,9 +2512,7 @@ void io::Writer::mergeSplitConnFigs(list<shared_ptr<frConnFig>>& connFigs)
           auto pathSeg = get<0>(pathSegTuple);
           auto isBegin = get<1>(pathSegTuple);
           if (isBegin) {
-            pathSeg->getPoints(begin, end);
-            frSegStyle tmpStyle;
-            pathSeg->getStyle(tmpStyle);
+            frSegStyle tmpStyle = pathSeg->getStyle();
             if (tmpStyle.getBeginExt() > style.getBeginExt()) {
               style.setBeginStyle(tmpStyle.getBeginStyle(),
                                   tmpStyle.getBeginExt());
@@ -2559,15 +2523,14 @@ void io::Writer::mergeSplitConnFigs(list<shared_ptr<frConnFig>>& connFigs)
         hasSeg = true;
         // newPathSeg end
       } else if (hasSeg && cnt == 0) {
-        newPathSeg->getPoints(begin, end);
+        auto [begin, end] = newPathSeg->getPoints();
         for (auto& pathSegTuple : it2.second) {
           auto pathSeg = get<0>(pathSegTuple);
           auto isBegin = get<1>(pathSegTuple);
           if (!isBegin) {
             Point tmp;
-            pathSeg->getPoints(tmp, end);
-            frSegStyle tmpStyle;
-            pathSeg->getStyle(tmpStyle);
+            std::tie(tmp, end) = pathSeg->getPoints();
+            frSegStyle tmpStyle = pathSeg->getStyle();
             if (tmpStyle.getEndExt() > style.getEndExt()) {
               style.setEndStyle(tmpStyle.getEndStyle(), tmpStyle.getEndExt());
             }
@@ -2622,11 +2585,9 @@ void io::Writer::mergeSplitConnFigs(list<shared_ptr<frConnFig>>& connFigs)
         for (auto& seg1 : mapIt1.second) {
           bool skip = false;
           // seg2 is horizontal
-          Point seg1Begin, seg1End;
-          seg1->getPoints(seg1Begin, seg1End);
+          auto [seg1Begin, seg1End] = seg1->getPoints();
           for (auto& seg2 : mapIt2.second) {
-            Point seg2Begin, seg2End;
-            seg2->getPoints(seg2Begin, seg2End);
+            auto [seg2Begin, seg2End] = seg2->getPoints();
             bool pushNewSeg1 = false;
             bool pushNewSeg2 = false;
             shared_ptr<frPathSeg> newSeg1;
@@ -2641,12 +2602,9 @@ void io::Writer::mergeSplitConnFigs(list<shared_ptr<frConnFig>>& connFigs)
               newSeg1->setPoints(Point(seg1End.x(), seg2Begin.y()), seg1End);
               // modify endstyle
               auto layerNum = seg1->getLayerNum();
-              frSegStyle tmpStyle1;
-              frSegStyle tmpStyle2;
-              frSegStyle style_default;
-              seg1->getStyle(tmpStyle1);
-              seg1->getStyle(tmpStyle2);
-              style_default
+              frSegStyle tmpStyle1 = seg1->getStyle();
+              frSegStyle tmpStyle2 = seg1->getStyle();
+              frSegStyle style_default
                   = getTech()->getLayer(layerNum)->getDefaultSegStyle();
               tmpStyle1.setEndStyle(frcExtendEndStyle,
                                     style_default.getEndExt());
@@ -2665,12 +2623,9 @@ void io::Writer::mergeSplitConnFigs(list<shared_ptr<frConnFig>>& connFigs)
               newSeg2->setPoints(Point(seg1End.x(), seg2Begin.y()), seg2End);
               // modify endstyle
               auto layerNum = seg2->getLayerNum();
-              frSegStyle tmpStyle1;
-              frSegStyle tmpStyle2;
-              frSegStyle style_default;
-              seg2->getStyle(tmpStyle1);
-              seg2->getStyle(tmpStyle2);
-              style_default
+              frSegStyle tmpStyle1 = seg2->getStyle();
+              frSegStyle tmpStyle2 = seg2->getStyle();
+              frSegStyle style_default
                   = getTech()->getLayer(layerNum)->getDefaultSegStyle();
               tmpStyle1.setEndStyle(frcExtendEndStyle,
                                     style_default.getEndExt());
@@ -2746,7 +2701,6 @@ void io::Writer::fillConnFigs(bool isTA)
 
 void io::Writer::updateDbVias(odb::dbBlock* block, odb::dbTech* tech)
 {
-  Rect box;
   for (auto via : viaDefs) {
     if (block->findVia(via->getName().c_str()) != nullptr)
       continue;
@@ -2765,18 +2719,18 @@ void io::Writer::updateDbVias(odb::dbBlock* block, odb::dbTech* tech)
     odb::dbVia* _db_via = odb::dbVia::create(block, via->getName().c_str());
     _db_via->setDefault(true);
     for (auto& fig : via->getLayer2Figs()) {
-      fig->getBBox(box);
+      Rect box = fig->getBBox();
       odb::dbBox::create(
           _db_via, _layer2, box.xMin(), box.yMin(), box.xMax(), box.yMax());
     }
     for (auto& fig : via->getCutFigs()) {
-      fig->getBBox(box);
+      Rect box = fig->getBBox();
       odb::dbBox::create(
           _db_via, _cut_layer, box.xMin(), box.yMin(), box.xMax(), box.yMax());
     }
 
     for (auto& fig : via->getLayer1Figs()) {
-      fig->getBBox(box);
+      Rect box = fig->getBBox();
       odb::dbBox::create(
           _db_via, _layer1, box.xMin(), box.yMin(), box.xMax(), box.yMax());
     }
@@ -2806,10 +2760,8 @@ void io::Writer::updateDbConn(odb::dbBlock* block, odb::dbTech* tech)
                   layer,
                   odb::dbWireType("ROUTED"),
                   net->getNonDefaultRule()->getLayerRule(layer));
-            Point begin, end;
-            frSegStyle segStyle;
-            pathSeg->getPoints(begin, end);
-            pathSeg->getStyle(segStyle);
+            auto [begin, end] = pathSeg->getPoints();
+            frSegStyle segStyle = pathSeg->getStyle();
             if (segStyle.getBeginStyle() == frEndStyle(frcExtendEndStyle)) {
               _wire_encoder.addPoint(begin.x(), begin.y());
             } else if (segStyle.getBeginStyle()
@@ -2845,8 +2797,7 @@ void io::Writer::updateDbConn(odb::dbBlock* block, odb::dbTech* tech)
                   layer,
                   odb::dbWireType("ROUTED"),
                   net->getNonDefaultRule()->getLayerRule(layer));
-            Point origin;
-            via->getOrigin(origin);
+            Point origin = via->getOrigin();
             _wire_encoder.addPoint(origin.x(), origin.y());
             odb::dbTechVia* tech_via = tech->findVia(viaName.c_str());
             if (tech_via != nullptr) {
@@ -2863,10 +2814,8 @@ void io::Writer::updateDbConn(odb::dbBlock* block, odb::dbTech* tech)
                 = getTech()->getLayer(pwire->getLayerNum())->getName();
             auto layer = tech->findLayer(layerName.c_str());
             _wire_encoder.newPath(layer, odb::dbWireType("ROUTED"));
-            Point origin;
-            Rect offsetBox;
-            pwire->getOrigin(origin);
-            pwire->getOffsetBox(offsetBox);
+            Point origin = pwire->getOrigin();
+            Rect offsetBox = pwire->getOffsetBox();
             _wire_encoder.addPoint(origin.x(), origin.y());
             _wire_encoder.addRect(offsetBox.xMin(),
                                   offsetBox.yMin(),

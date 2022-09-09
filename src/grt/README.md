@@ -119,13 +119,15 @@ Example:
   -perturbation_amount 2`
 
 ```
-repair_antennas [diode_cell/diode_pin] [-iterations iterations]
+repair_antennas [diode_cell] [-iterations iterations]
 ```
 
 The repair_antenna command checks the global routing for antenna
 violations and repairs the violations by inserting diodes near the
 gates of the violating nets.  By default the command runs only one
-iteration to repair antennas.
+iteration to repair antennas. Filler instances added by the
+`filler_placement` command should NOT be in the database when
+`repair_antennas` is called.
 
 See LEF/DEF 5.8 Language Reference, Appendix C, "Calculating and
 Fixing Process Antenna Violations" for a description of antenna
@@ -133,7 +135,7 @@ violations.
 
 Example: `repair_antennas`
 
-If no diode_cell/diode_pin argument is specified the LEF cell with
+If no diode_cell argument is specified the LEF cell with
 class CORE ANTENNACELL will be used.
 If any repairs are made the filler instances are remove and must be
 placed with the `filler_placement` command.

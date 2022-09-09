@@ -107,7 +107,9 @@ class Fixture
       frLayerNum layer_num,
       frCoord space = 200,
       frCoord width = 200,
-      frCoord within = 50);
+      frCoord within = 50,
+      frCoord end_prl_spacing = 0,
+      frCoord end_prl = 0);
 
   std::shared_ptr<frLef58SpacingEndOfLineWithinParallelEdgeConstraint>
   makeLef58SpacingEolParEdgeConstraint(frLef58SpacingEndOfLineConstraint* con,
@@ -193,6 +195,7 @@ class Fixture
   std::unique_ptr<fr::Logger> logger;
   std::unique_ptr<frDesign> design;
   frUInt4 numBlockages, numTerms, numMasters, numInsts;
+  odb::dbTech* db_tech;
 };
 
 // BOOST_TEST wants an operator<< for any type it compares.  We

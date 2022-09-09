@@ -267,6 +267,7 @@ RepairHold::repairHold(VertexSeq &ends,
       logger_->info(RSZ, 32, "Inserted {} hold buffers.", inserted_buffer_count_);
       resizer_->level_drvr_vertices_valid_ = false;
     }
+    logger_->metric("design__instance__count__hold_buffer", inserted_buffer_count_);
     if (inserted_buffer_count_ > max_buffer_count)
       logger_->error(RSZ, 60, "Max buffer count reached.");
     if (resizer_->overMaxArea())
@@ -342,7 +343,12 @@ RepairHold::repairEndHold(Vertex *end_vertex,
       for (int i = expanded.startIndex(); i < path_length; i++) {
         PathRef *path = expanded.path(i);
         Vertex *path_vertex = path->vertex(sta_);
-        if (path_vertex->isDriver(network_)) {
+        Pin *path_pin = path_vertex->pin();
+        Net *path_net = network_->isTopLevelPort(path_pin)
+          ? network_->net(network_->term(path_pin))
+          : network_->net(path_pin);
+        if (path_vertex->isDriver(network_)
+            && !resizer_->dontTouch(path_net)) {
           PinSeq load_pins;
           float excluded_cap = 0.0;
           bool loads_have_out_port = false;

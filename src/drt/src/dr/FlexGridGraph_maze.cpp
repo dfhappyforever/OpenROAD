@@ -382,20 +382,18 @@ frCost FlexGridGraph::getNextPathCost(const FlexWavefrontGrid& currGrid,
                                                    ndr_)) {
       isForbiddenVia2Via = true;
       // check both x and y
-    } else if (currVLengthX > 0 && currVLengthY > 0
-               && (getTech()->isVia2ViaForbiddenLen(gridZ,
-                                                    !(currGrid.isPrevViaUp()),
-                                                    !isCurrViaUp,
-                                                    false,
-                                                    currVLengthY,
-                                                    ndr_)
-                   && getTech()->isVia2ViaForbiddenLen(
-                       gridZ,
-                       !(currGrid.isPrevViaUp()),
-                       !isCurrViaUp,
-                       true,
-                       currVLengthX,
-                       ndr_))) {
+    } else if (getTech()->isVia2ViaForbiddenLen(gridZ,
+                                                !(currGrid.isPrevViaUp()),
+                                                !isCurrViaUp,
+                                                false,
+                                                currVLengthY,
+                                                ndr_)
+               && getTech()->isVia2ViaForbiddenLen(gridZ,
+                                                   !(currGrid.isPrevViaUp()),
+                                                   !isCurrViaUp,
+                                                   true,
+                                                   currVLengthX,
+                                                   ndr_)) {
       isForbiddenVia2Via = true;
     }
 
@@ -847,9 +845,8 @@ bool FlexGridGraph::search(vector<FlexMazeIdx>& connComps,
   getDim(xDim, yDim, zDim);
   FlexMazeIdx dstMazeIdx1(xDim - 1, yDim - 1, zDim - 1);
   FlexMazeIdx dstMazeIdx2(0, 0, 0);
-  FlexMazeIdx mi;
   for (auto& ap : nextPin->getAccessPatterns()) {
-    ap->getMazeIdx(mi);
+    FlexMazeIdx mi = ap->getMazeIdx();
     dstMazeIdx1.set(min(dstMazeIdx1.x(), mi.x()),
                     min(dstMazeIdx1.y(), mi.y()),
                     min(dstMazeIdx1.z(), mi.z()));

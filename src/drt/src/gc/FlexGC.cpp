@@ -66,18 +66,17 @@ FlexGCWorker::Impl::Impl(frTechObject* techIn,
       targetNet_(nullptr),
       minLayerNum_(std::numeric_limits<frLayerNum>::min()),
       maxLayerNum_(std::numeric_limits<frLayerNum>::max()),
-      targetObj_(nullptr),
       ignoreDB_(false),
       ignoreMinArea_(false),
       ignoreLongSideEOL_(false),
+      ignoreCornerSpacing_(false),
       surgicalFixEnabled_(false)
 {
 }
 
 void FlexGCWorker::Impl::addMarker(std::unique_ptr<frMarker> in)
 {
-  Rect bbox;
-  in->getBBox(bbox);
+  Rect bbox = in->getBBox();
   auto layerNum = in->getLayerNum();
   auto con = in->getConstraint();
   std::vector<frBlockObject*> srcs(2, nullptr);
@@ -181,9 +180,14 @@ void FlexGCWorker::resetTargetNet()
   impl_->targetNet_ = nullptr;
 }
 
-void FlexGCWorker::setTargetObj(frBlockObject* in)
+void FlexGCWorker::addTargetObj(frBlockObject* in)
 {
-  impl_->targetObj_ = in;
+  impl_->targetObjs_.insert(in);
+}
+
+void FlexGCWorker::setTargetObjs(const std::set<frBlockObject*>& targetObjs)
+{
+  impl_->targetObjs_ = targetObjs;
 }
 
 void FlexGCWorker::setIgnoreDB()
@@ -194,6 +198,11 @@ void FlexGCWorker::setIgnoreDB()
 void FlexGCWorker::setIgnoreMinArea()
 {
   impl_->ignoreMinArea_ = true;
+}
+
+void FlexGCWorker::setIgnoreCornerSpacing()
+{
+  impl_->ignoreCornerSpacing_ = true;
 }
 
 void FlexGCWorker::setIgnoreLongSideEOL()

@@ -154,6 +154,7 @@ class FlexDR
       std::vector<std::unique_ptr<FlexDRWorker>>& batch);
 
   void reportGuideCoverage();
+
  private:
   triton_route::TritonRoute* router_;
   frDesign* design_;
@@ -376,10 +377,8 @@ class FlexDRWorker
   void setMarkers(std::vector<frMarker>& in)
   {
     markers_.clear();
-    Rect box;
     for (auto& marker : in) {
-      marker.getBBox(box);
-      if (getDrcBox().intersects(box)) {
+      if (getDrcBox().intersects(marker.getBBox())) {
         markers_.push_back(marker);
       }
     }
@@ -387,11 +386,9 @@ class FlexDRWorker
   void setMarkers(const std::vector<std::unique_ptr<frMarker>>& in)
   {
     markers_.clear();
-    Rect box;
     for (auto& uMarker : in) {
       auto& marker = *uMarker;
-      marker.getBBox(box);
-      if (getDrcBox().intersects(box)) {
+      if (getDrcBox().intersects(marker.getBBox())) {
         markers_.push_back(marker);
       }
     }
@@ -399,10 +396,8 @@ class FlexDRWorker
   void setMarkers(std::vector<frMarker*>& in)
   {
     markers_.clear();
-    Rect box;
     for (auto& marker : in) {
-      marker->getBBox(box);
-      if (getDrcBox().intersects(box)) {
+      if (getDrcBox().intersects(marker->getBBox())) {
         markers_.push_back(*marker);
       }
     }
@@ -599,6 +594,10 @@ class FlexDRWorker
                              std::map<frNet*,
                                       std::vector<std::unique_ptr<drConnFig>>,
                                       frBlockObjectComp>& netExtObjs);
+  void initNets_segmentTerms(Point bp,
+                             frLayerNum lNum,
+                             frNet* net,
+                             set<frBlockObject*, frBlockObjectComp>& terms);
   void initNets_initDR(
       const frDesign* design,
       std::set<frNet*, frBlockObjectComp>& nets,
@@ -1019,6 +1018,10 @@ class FlexDRWorker
 
   void endRemoveMarkers(frDesign* design);
   void endAddMarkers(frDesign* design);
+
+  // helper functions
+  frCoord snapCoordToManufacturingGrid(const frCoord coord,
+                                       const int lowerLeftCoord);
 
   template <class Archive>
   void serialize(Archive& ar, const unsigned int version);

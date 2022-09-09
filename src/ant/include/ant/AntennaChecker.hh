@@ -61,11 +61,11 @@ struct PARinfo;
 struct ARinfo;
 struct AntennaModel;
 
-struct ViolationInfo
+struct Violation
 {
   int routing_level;
-  vector<odb::dbITerm*> iterms;
-  int required_diode_count;
+  vector<odb::dbITerm*> gates;
+  int diode_count_per_gate;
 };
 
 class AntennaChecker
@@ -83,12 +83,12 @@ class AntennaChecker
                     bool verbose);
   int antennaViolationCount() const;
 
-  void checkMaxLength(const char* net_name, int layer);
+  void findMaxAllowedLength(const char* net_name, const char* layer);
 
   void findMaxWireLength();
 
-  vector<ViolationInfo> getAntennaViolations(dbNet* net,
-                                                  odb::dbMTerm* diode_mterm);
+  vector<Violation> getAntennaViolations(dbNet* net,
+                                         odb::dbMTerm* diode_mterm);
   void initAntennaRules();
 
  private:
@@ -144,15 +144,16 @@ class AntennaChecker
                      vector<dbWireGraph::Node*> &wire_roots,
                      vector<dbWireGraph::Node*> &gate_iterms);
 
-  std::pair<bool, bool> checkWirePar(ARinfo AntennaRatio,
+  std::pair<bool, bool> checkWirePar(const ARinfo& AntennaRatio,
+                                     dbNet* net,
                                      bool verbose,
                                      bool report);
-  std::pair<bool, bool> checkWireCar(ARinfo AntennaRatio,
+  std::pair<bool, bool> checkWireCar(const ARinfo& AntennaRatio,
                                      bool par_checked,
                                      bool verbose,
                                      bool report);
-  bool checkViaPar(ARinfo AntennaRatio, bool verbose, bool report);
-  bool checkViaCar(ARinfo AntennaRatio, bool verbose, bool report);
+  bool checkViaPar(const ARinfo& AntennaRatio, bool verbose, bool report);
+  bool checkViaCar(const ARinfo& AntennaRatio, bool verbose, bool report);
 
   void checkNet(dbNet* net,
                 bool report_if_no_violation,
@@ -160,7 +161,7 @@ class AntennaChecker
                 // Return values.
                 int &net_violation_count,
                 int &pin_violation_count);
-  void checkGate(dbWireGraph::Node* gate,
+  void checkGate(dbNet* net, dbWireGraph::Node* gate,
                  vector<ARinfo> &CARtable,
                  vector<ARinfo> &VIA_CARtable,
                  bool report,
@@ -168,7 +169,7 @@ class AntennaChecker
                  // Return values.
                  bool &violation,
                  std::unordered_set<dbWireGraph::Node*> &violated_gates);
-  bool checkViolation(PARinfo &par_info, dbTechLayer* layer);
+  bool checkViolation(const PARinfo &par_info, dbTechLayer* layer);
   bool antennaRatioDiffDependent(dbTechLayer* layer);
 
   void findWireRootIterms(dbWireGraph::Node* node,
@@ -192,7 +193,7 @@ class AntennaChecker
   std::map<odb::dbTechLayer*, AntennaModel> layer_info_;
   int net_violation_count_;
 
-  static constexpr int repair_max_diode_count = 10;
+  static constexpr int max_diode_count_per_gate = 10;
 };
 
 }  // namespace ant
