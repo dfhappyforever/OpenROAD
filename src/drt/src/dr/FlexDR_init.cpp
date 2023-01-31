@@ -188,14 +188,11 @@ void FlexDRWorker::initNetObjs(
 {
   vector<frBlockObject*> result;
   design->getRegionQuery()->queryDRObj(getExtBox(), result);
-  int cnt1 = 0;
-  int cnt2 = 0;
   for (auto rptr : result) {
     if (rptr->typeId() == frcPathSeg) {
       auto cptr = static_cast<frPathSeg*>(rptr);
       if (cptr->hasNet()) {
         initNetObjs_pathSeg(cptr, nets, netRouteObjs, netExtObjs);
-        cnt1++;
       } else {
         cout << "Error: initNetObjs hasNet() empty" << endl;
       }
@@ -203,7 +200,6 @@ void FlexDRWorker::initNetObjs(
       auto cptr = static_cast<frVia*>(rptr);
       if (cptr->hasNet()) {
         initNetObjs_via(cptr, nets, netRouteObjs, netExtObjs);
-        cnt2++;
       } else {
         cout << "Error: initNetObjs hasNet() empty" << endl;
       }
@@ -211,7 +207,6 @@ void FlexDRWorker::initNetObjs(
       auto cptr = static_cast<frPatchWire*>(rptr);
       if (cptr->hasNet()) {
         initNetObjs_patchWire(cptr, nets, netRouteObjs, netExtObjs);
-        cnt1++;
       } else {
         cout << "Error: initNetObjs hasNet() empty" << endl;
       }
@@ -970,14 +965,16 @@ void FlexDRWorker::initNet_termGenAp_new(const frDesign* design, drPin* dPin)
                 = restrictedRouting || isRestrictedRouting(currLayerNum - 2);
           // get intersecting tracks if any
           if (restrictedRouting) {
-            bool found = findAPTracks(currLayerNum + 2,
-                                      getTech()->getTopLayerNum(),
-                                      pinRect,
-                                      xLocs,
-                                      yLocs);
+            bool found = findAPTracks(
+                currLayerNum + 2,
+                std::min(TOP_ROUTING_LAYER, getTech()->getTopLayerNum()),
+                pinRect,
+                xLocs,
+                yLocs);
             if (!found)
               found = findAPTracks(currLayerNum - 2,
-                                   getTech()->getBottomLayerNum(),
+                                   std::max(BOTTOM_ROUTING_LAYER,
+                                            getTech()->getBottomLayerNum()),
                                    pinRect,
                                    xLocs,
                                    yLocs);
@@ -1990,7 +1987,7 @@ void FlexDRWorker::initGridGraph(const frDesign* design)
   map<frCoord, map<frLayerNum, frTrackPattern*>> xMap;
   map<frCoord, map<frLayerNum, frTrackPattern*>> yMap;
   initTrackCoords(xMap, yMap);
-  gridGraph_.setCost(workerDRCCost_, workerMarkerCost_);
+  gridGraph_.setCost(workerDRCCost_, workerMarkerCost_, workerFixedShapeCost_);
   gridGraph_.init(design,
                   getRouteBox(),
                   getExtBox(),
@@ -2006,8 +2003,8 @@ void FlexDRWorker::initMazeIdx_connFig(drConnFig* connFig)
   if (connFig->typeId() == drcPathSeg) {
     auto obj = static_cast<drPathSeg*>(connFig);
     auto [bp, ep] = obj->getPoints();
-    bp.set(max(bp.x(), getExtBox().xMin()), max(bp.y(), getExtBox().yMin()));
-    ep.set(min(ep.x(), getExtBox().xMax()), min(ep.y(), getExtBox().yMax()));
+    bp = {max(bp.x(), getExtBox().xMin()), max(bp.y(), getExtBox().yMin())};
+    ep = {min(ep.x(), getExtBox().xMax()), min(ep.y(), getExtBox().yMax())};
     auto lNum = obj->getLayerNum();
     if (gridGraph_.hasMazeIdx(bp, lNum) && gridGraph_.hasMazeIdx(ep, lNum)) {
       FlexMazeIdx bi, ei;
@@ -2552,7 +2549,8 @@ void FlexDRWorker::route_queue_markerCostDecay()
     auto currIt = it;
     auto& mi = *currIt;
     ++it;
-    if (gridGraph_.decayMarkerCostPlanar(mi.x(), mi.y(), mi.z(), MARKERDECAY)) {
+    if (gridGraph_.decayMarkerCostPlanar(
+            mi.x(), mi.y(), mi.z(), workerMarkerDecay_)) {
       planarHistoryMarkers_.erase(currIt);
     }
   }
@@ -2560,7 +2558,8 @@ void FlexDRWorker::route_queue_markerCostDecay()
     auto currIt = it;
     auto& mi = *currIt;
     ++it;
-    if (gridGraph_.decayMarkerCostVia(mi.x(), mi.y(), mi.z(), MARKERDECAY)) {
+    if (gridGraph_.decayMarkerCostVia(
+            mi.x(), mi.y(), mi.z(), workerMarkerDecay_)) {
       viaHistoryMarkers_.erase(currIt);
     }
   }
@@ -3188,8 +3187,9 @@ void FlexDRWorker::initMazeCost_terms(const set<frBlockObject*>& objs,
               modInterLayerCutSpacingCost(box, zIdx, type, false);
             }
             // temporary solution, only add cost around macro pins
-            if (masterType.isBlock() || masterType.isPad()
-                || masterType == dbMasterType::RING) {
+            if ((masterType.isBlock() || masterType.isPad()
+                 || masterType == dbMasterType::RING)
+                && !isSkipVia) {
               modMinimumcutCostVia(box, zIdx, type, true);
               modMinimumcutCostVia(box, zIdx, type, false);
             }
@@ -3212,7 +3212,8 @@ void FlexDRWorker::initMazeCost_planarTerm(const frDesign* design)
        layerNum <= getTech()->getTopLayerNum();
        ++layerNum) {
     result.clear();
-    if (getTech()->getLayer(layerNum)->getType() != dbTechLayerType::ROUTING) {
+    frLayer* layer = getTech()->getLayer(layerNum);
+    if (layer->getType() != dbTechLayerType::ROUTING) {
       continue;
     }
     zIdx = gridGraph_.getMazeZIdx(layerNum);
@@ -3223,14 +3224,13 @@ void FlexDRWorker::initMazeCost_planarTerm(const frDesign* design)
         case frcBTerm: {
           FlexMazeIdx mIdx1, mIdx2;
           gridGraph_.getIdxBox(mIdx1, mIdx2, box);
-          bool isPinRectHorz
-              = (box.xMax() - box.xMin()) > (box.yMax() - box.yMin());
+          bool isLayerHorz = layer->isHorizontal();
           for (int i = mIdx1.x(); i <= mIdx2.x(); i++) {
             for (int j = mIdx1.y(); j <= mIdx2.y(); j++) {
               FlexMazeIdx mIdx(i, j, zIdx);
               gridGraph_.setBlocked(i, j, zIdx, frDirEnum::U);
               gridGraph_.setBlocked(i, j, zIdx, frDirEnum::D);
-              if (isPinRectHorz) {
+              if (isLayerHorz) {
                 gridGraph_.setBlocked(i, j, zIdx, frDirEnum::N);
                 gridGraph_.setBlocked(i, j, zIdx, frDirEnum::S);
               } else {

@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FLEX_GR_CMAP_H_
-#define _FLEX_GR_CMAP_H_
+#pragma once
 
 #define CMAPHISTSIZE 8
 #define CMAPSUPPLYSIZE 8
@@ -46,6 +45,7 @@ class FlexGRCMap
   FlexGRCMap(frDesign* designIn) : design_(designIn), bits_()
   {
     auto& gCellPatterns = design_->getTopBlock()->getGCellPatterns();
+    numLayers_ = design_->getTech()->getLayers().size();
     xgp_ = &(gCellPatterns.at(0));
     ygp_ = &(gCellPatterns.at(1));
   }
@@ -667,5 +667,3 @@ class FlexGRCMap
                         bool isOBS);
 };
 }  // namespace fr
-
-#endif

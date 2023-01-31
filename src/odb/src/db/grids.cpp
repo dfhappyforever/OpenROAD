@@ -1041,7 +1041,7 @@ void Ath__track::linkWire(Ath__wire*& w1, Ath__wire*& w2)
         || w1->_base > w2->_base + w2->_width
         || w2->_base > w1->_base + w1->_width)
       w1->setNext(w2);
-    else {  // only good for adj == Z_endAdjust
+    else {                          // only good for adj == Z_endAdjust
       if (w1->_base < w2->_base) {  // w1 is wider?
         w2->_xy = nend;
         w1->setNext(w2);
@@ -3055,7 +3055,6 @@ void Ath__gridTable::setExtControl(dbBlock* block,
                                    bool allNet,
                                    uint contextDepth,
                                    Ath__array1D<int>** contextArray,
-                                   uint* contextLength,
                                    Ath__array1D<SEQ*>*** dgContextArray,
                                    uint* dgContextDepth,
                                    uint* dgContextPlanes,
@@ -3082,7 +3081,6 @@ void Ath__gridTable::setExtControl(dbBlock* block,
   _targetTrackReversed = false;
   _ccContextDepth = contextDepth;
   _ccContextArray = contextArray;
-  _ccContextLength = contextLength;
   _allNet = allNet;
   _dgContextArray = dgContextArray;
   _dgContextDepth = dgContextDepth;

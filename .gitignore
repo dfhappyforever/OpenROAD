@@ -10,12 +10,15 @@
 *.rej
 *.orig
 *.vscode
+*.sw[opqr]
 TAGS
 *~
 \#*#
 .~lock.*#
 .DS_Store
+.cache
 Makefile
+__pycache__
 
 include/ord/Version.hh
 

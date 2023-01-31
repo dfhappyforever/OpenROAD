@@ -21,15 +21,15 @@ class Graphics : public gui::Renderer
 {
  public:
   // Debug InitialPlace
-  Graphics(utl::Logger* logger,
-           std::shared_ptr<PlacerBase> pb);
+  Graphics(utl::Logger* logger, std::shared_ptr<PlacerBase> pb);
 
   // Debug NesterovPlace
   Graphics(utl::Logger* logger,
            NesterovPlace* np,
            std::shared_ptr<PlacerBase> pb,
            std::shared_ptr<NesterovBase> nb,
-           bool draw_bins);
+           bool draw_bins,
+           odb::dbInst* inst);
 
   // Draw the graphics; optionally pausing afterwards
   void cellPlot(bool pause = false);

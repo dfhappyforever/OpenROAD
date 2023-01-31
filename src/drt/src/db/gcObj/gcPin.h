@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _GC_PIN_H
-#define _GC_PIN_H
+#pragma once
 
 #include "db/gcObj/gcShape.h"
 
@@ -100,8 +99,5 @@ class gcPin : public gcBlockObject
   std::vector<std::vector<std::unique_ptr<gcSegment>>> polygon_edges_;
   std::vector<std::vector<std::unique_ptr<gcCorner>>> polygon_corners_;
   std::vector<std::unique_ptr<gcRect>> max_rectangles_;
-
 };
 }  // namespace fr
-
-#endif

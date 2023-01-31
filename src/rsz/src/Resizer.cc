@@ -175,7 +175,8 @@ Resizer::Resizer() :
   resize_count_(0),
   inserted_buffer_count_(0),
   buffer_moved_into_core_(false),
-  max_wire_length_(0)
+  max_wire_length_(0),
+  worst_slack_nets_percent_(10)
 {
 }
 
@@ -381,6 +382,7 @@ Resizer::removeBuffer(Instance *buffer)
     delete pin_iter;
     sta_->deleteNet(removed);
     parasitics_invalid_.erase(removed);
+    parasiticsInvalid(survivor);
   }
 }
 
@@ -491,6 +493,28 @@ Resizer::bufferInput(const Pin *top_pin,
   Net *input_net = db_network_->net(term);
   LibertyPort *input, *output;
   buffer_cell->bufferPorts(input, output);
+
+  bool has_dont_touch = false;
+  NetConnectedPinIterator *pin_iter = network_->connectedPinIterator(input_net);
+  while (pin_iter->hasNext()) {
+    Pin *pin = pin_iter->next();
+    // Leave input port pin connected to input_net.
+    if (pin != top_pin && dontTouch(network_->instance(pin))) {
+      has_dont_touch = true;
+      logger_->warn(RSZ,
+                    85,
+                    "Input {} can't be buffered due to dont-touch fanout {}",
+                    network_->name(input_net),
+                    network_->name(pin));
+      break;
+    }
+  }
+  delete pin_iter;
+
+  if (has_dont_touch) {
+    return nullptr;
+  }
+
   string buffer_name = makeUniqueInstName("input");
   Instance *parent = db_network_->topInstance();
   Net *buffer_out = makeUniqueNet();
@@ -500,7 +524,7 @@ Resizer::bufferInput(const Pin *top_pin,
                                 parent, pin_loc);
   inserted_buffer_count_++;
 
-  NetConnectedPinIterator *pin_iter = network_->connectedPinIterator(input_net);
+  pin_iter = network_->connectedPinIterator(input_net);
   while (pin_iter->hasNext()) {
     Pin *pin = pin_iter->next();
     // Leave input port pin connected to input_net.
@@ -539,7 +563,7 @@ Resizer::bufferOutputs()
         // Hands off special nets.
         && !db_network_->isSpecial(net)
         // DEF does not have tristate output types so we have look at the drivers.
-        && !hasTristateDriver(net)
+        && !hasTristateOrDontTouchDriver(net)
         && !vertex->isConstant()
         && hasPins(net)) {
       bufferOutput(pin, buffer_lowest_drive_);
@@ -556,13 +580,25 @@ Resizer::bufferOutputs()
 }
 
 bool
-Resizer::hasTristateDriver(const Net *net)
+Resizer::hasTristateOrDontTouchDriver(const Net *net)
 {
   PinSet *drivers = network_->drivers(net);
   if (drivers) {
     for (Pin *pin : *drivers) {
-      if (isTristateDriver(pin))
+      if (isTristateDriver(pin)) {
         return true;
+      }
+      odb::dbITerm* iterm;
+      odb::dbBTerm* bterm;
+      db_network_->staToDb(pin, iterm, bterm);
+      if (iterm && iterm->getInst()->isDoNotTouch()) {
+        logger_->warn(RSZ,
+                      84,
+                      "Output {} can't be buffered due to dont-touch driver {}",
+                      network_->name(net),
+                      network_->name(pin));
+        return true;
+      }
     }
   }
   return false;
@@ -851,11 +887,12 @@ Resizer::replaceCell(Instance *inst,
       while (pin_iter->hasNext()) {
         const Pin *pin = pin_iter->next();
         const Net *net = network_->net(pin);
+        // ODB is clueless about tristates so go to liberty for reality.
+        const LibertyPort *port = network_->libertyPort(pin);
         // Invalidate estimated parasitics on all instance input pins.
-        // Outputs change location (slightly) but do not update because
-        // tristate nets have multiple drivers and this is drivers^2 if
-        // they the parasitics are updated for each resize.
-        if (net && network_->direction(pin)->isAnyInput())
+        // Tristate nets have multiple drivers and this is drivers^2 if
+        // the parasitics are updated for each resize.
+        if (net && !port->direction()->isAnyTristate())
           parasiticsInvalid(net);
       }
       delete pin_iter;
@@ -934,13 +971,13 @@ Resizer::findResizeSlacks1()
   }
 
   // Find the nets with the worst slack.
-  double worst_percent = .1;
+
   //  sort(nets.begin(), nets.end(). [&](const Net *net1,
   sort(nets, [this](const Net *net1,
                  const Net *net2)
              { return resizeNetSlack(net1) < resizeNetSlack(net2); });
   worst_slack_nets_.clear();
-  for (int i = 0; i < nets.size() * worst_percent; i++)
+  for (int i = 0; i < nets.size() * worst_slack_nets_percent_ / 100.0; i++)
     worst_slack_nets_.push_back(nets[i]);
 }
 
@@ -1173,6 +1210,9 @@ bool
 Resizer::dontTouch(const Instance *inst)
 {
   dbInst *db_inst = db_network_->staToDb(inst);
+  if (!db_inst) {
+    return false;
+  }
   return db_inst->isDoNotTouch();
 }
 
@@ -1475,8 +1515,24 @@ Resizer::repairTieFanout(LibertyPort *tie_port,
           Net *tie_net = network_->net(tie_pin);
           sta_->deleteNet(tie_net);
           parasitics_invalid_.erase(tie_net);
-          // Delete the tie instance.
-          sta_->deleteInstance(inst);
+          // Delete the tie instance if no other ports are in use.
+          // A tie cell can have both tie hi and low outputs.
+          bool has_other_fanout = false;
+          std::unique_ptr<InstancePinIterator> inst_pin_iter{
+              network_->pinIterator(inst)};
+          while (inst_pin_iter->hasNext()) {
+            Pin *pin = inst_pin_iter->next();
+            if (pin != drvr_pin) {
+              Net* net = network_->net(pin);
+              if (net && !network_->isPower(net) && !network_->isGround(net)) {
+                has_other_fanout = true;
+                break;
+              }
+            }
+          }
+          if (!has_other_fanout) {
+            sta_->deleteInstance(inst);
+          }
         }
       }
     }
@@ -2203,10 +2259,11 @@ Resizer::cloneClkInverter(Instance *inv)
 
 void
 Resizer::repairSetup(double setup_margin,
+                     double repair_tns_end_percent,
                      int max_passes)
 {
   resizePreamble();
-  repair_setup_->repairSetup(setup_margin, max_passes);
+  repair_setup_->repairSetup(setup_margin, repair_tns_end_percent, max_passes);
 }
 
 void
@@ -2303,10 +2360,8 @@ void
 Resizer::journalRestore(int &resize_count,
                         int &inserted_buffer_count)
 {
-  for (auto inst_cell : resized_inst_map_) {
-    Instance *inst = inst_cell.first;
+  for (auto [inst, lib_cell] : resized_inst_map_) {
     if (!inserted_buffer_set_.hasKey(inst)) {
-      LibertyCell *lib_cell = inst_cell.second;
       debugPrint(logger_, RSZ, "journal", 1, "journal restore {} ({})",
                  network_->pathName(inst),
                  lib_cell->name());
@@ -2458,6 +2513,12 @@ void
 Resizer::setDebugPin(const Pin *pin)
 {
   debug_pin_ = pin;
+}
+
+void
+Resizer::setWorstSlackNetsPercent(float percent)
+{
+  worst_slack_nets_percent_ = percent;
 }
 
 } // namespace

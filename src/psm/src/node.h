@@ -44,6 +44,17 @@ using odb::dbInst;
 using odb::Point;
 using NodeIdx = int;
 
+struct NodeEnclosure
+{
+  int neg_x = 0;
+  int pos_x = 0;
+  int neg_y = 0;
+  int pos_y = 0;
+
+  int dx() { return neg_x + pos_x; };
+  int dy() { return neg_y + pos_y; };
+};
+
 //! Node class which stores the properties of the node of the PDN
 class Node
 {
@@ -76,6 +87,10 @@ class Node
 
   bool hasInstances() const;
 
+  void setEnclosure(NodeEnclosure encl);
+
+  NodeEnclosure getEnclosure() const;
+
   const std::vector<dbInst*>& getInstances() const;
 
   void addInstance(dbInst* inst);
@@ -87,6 +102,7 @@ class Node
   double current_src_{0.0};
   double voltage_{0.0};
   bool connected_{false};
+  NodeEnclosure encl_{0, 0, 0, 0};
   std::vector<dbInst*> connected_instances_;
 };
 }  // namespace psm

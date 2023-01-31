@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_PROFILE_TASK_H_
-#define _FR_PROFILE_TASK_H_
+#pragma once
 
 #ifdef HAS_VTUNE
 #include <ittnotify.h>
@@ -42,20 +41,27 @@ namespace fr {
 class ProfileTask
 {
  public:
-  ProfileTask(const char* name)
-    : done_(false)
+  ProfileTask(const char* name) : done_(false)
   {
     domain_ = __itt_domain_create("TritonRoute");
     name_ = __itt_string_handle_create(name);
     __itt_task_begin(domain_, __itt_null, __itt_null, name_);
   }
 
-  ~ProfileTask() { if (!done_) __itt_task_end(domain_); }
+  ~ProfileTask()
+  {
+    if (!done_)
+      __itt_task_end(domain_);
+  }
 
   // Useful if you don't want to have to introduce a scope
   // just to note a task.
-  void done() { done_ = true; __itt_task_end(domain_); }
-  
+  void done()
+  {
+    done_ = true;
+    __itt_task_end(domain_);
+  }
+
  private:
   __itt_domain* domain_;
   __itt_string_handle* name_;
@@ -74,5 +80,3 @@ class ProfileTask
 #endif
 
 }  // namespace fr
-
-#endif

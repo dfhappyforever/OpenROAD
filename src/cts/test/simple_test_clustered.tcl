@@ -1,4 +1,5 @@
 source "helpers.tcl"
+source "cts-helpers.tcl"
 
 read_liberty Nangate45/Nangate45_typ.lib
 read_lef Nangate45/Nangate45.lef
@@ -13,11 +14,9 @@ set_wire_rc -clock -layer metal5
 clock_tree_synthesis -root_buf CLKBUF_X3 \
                      -buf_list CLKBUF_X3 \
                      -wire_unit 20 \
-                     -post_cts_disable \
                      -sink_clustering_enable \
                      -distance_between_buffers 100 \
                      -sink_clustering_size 10 \
                      -sink_clustering_max_diameter 60 \
                      -num_static_layers 1
 
-exit

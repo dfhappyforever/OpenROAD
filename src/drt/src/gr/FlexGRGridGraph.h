@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FLEX_GR_GRID_GRAPH_H_
-#define _FLEX_GR_GRID_GRAPH_H_
+#pragma once
 
 #define GRGRIDGRAPHHISTCOSTSIZE 8
 #define GRSUPPLYSIZE 8
@@ -108,7 +107,7 @@ class FlexGRGridGraph
 
   Point& getPoint(frMIdx x, frMIdx y, Point& in) const
   {
-    in.set(xCoords_[x], yCoords_[y]);
+    in = {xCoords_[x], yCoords_[y]};
     return in;
   }
 
@@ -264,9 +263,9 @@ class FlexGRGridGraph
   frDirEnum getPrevAstarNodeDir(frMIdx x, frMIdx y, frMIdx z) const
   {
     auto baseIdx = 3 * getIdx(x, y, z);
-    return (frDirEnum)(((unsigned short) (prevDirs_[baseIdx]) << 2)
-                       + ((unsigned short) (prevDirs_[baseIdx + 1]) << 1)
-                       + ((unsigned short) (prevDirs_[baseIdx + 2]) << 0));
+    return (frDirEnum) (((unsigned short) (prevDirs_[baseIdx]) << 2)
+                        + ((unsigned short) (prevDirs_[baseIdx + 1]) << 1)
+                        + ((unsigned short) (prevDirs_[baseIdx + 2]) << 0));
   }
 
   // unsafe access, no check
@@ -826,5 +825,3 @@ class FlexGRGridGraph
   friend class FlexGRWorker;
 };
 }  // namespace fr
-
-#endif

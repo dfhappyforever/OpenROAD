@@ -33,11 +33,11 @@
 #include "gui/gui.h"
 
 #include <QApplication>
-#include <QDebug>
 #include <boost/algorithm/string/predicate.hpp>
 #include <stdexcept>
 #include <string>
 
+#include "clockWidget.h"
 #include "db.h"
 #include "dbShape.h"
 #include "defin.h"
@@ -60,6 +60,56 @@ extern int cmd_argc;
 extern char** cmd_argv;
 
 namespace gui {
+
+static QApplication* application = nullptr;
+static void message_handler(QtMsgType type,
+                            const QMessageLogContext& context,
+                            const QString& msg)
+{
+  auto* logger = ord::OpenRoad::openRoad()->getLogger();
+
+  bool suppress = false;
+#if NDEBUG
+  // suppress messages when built as a release, but preserve them in debug
+  // builds
+  if (application != nullptr) {
+    if (application->platformName() == "offscreen"
+        && msg.contains("This plugin does not support")) {
+      suppress = true;
+    }
+  }
+#endif
+
+  if (suppress) {
+    return;
+  }
+
+  std::string print_msg;
+  if (context.file != nullptr && context.function != nullptr) {
+    print_msg = fmt::format("{}:{}:{}: {}",
+                            context.file,
+                            context.function,
+                            context.line,
+                            msg.toStdString());
+  } else {
+    print_msg = msg.toStdString();
+  }
+  switch (type) {
+    case QtDebugMsg:
+      logger->debug(utl::GUI, 1, print_msg);
+      break;
+    case QtInfoMsg:
+      logger->info(utl::GUI, 75, print_msg);
+      break;
+    case QtWarningMsg:
+      logger->warn(utl::GUI, 76, print_msg);
+      break;
+    case QtCriticalMsg:
+    case QtFatalMsg:
+      logger->error(utl::GUI, 77, print_msg);
+      break;
+  }
+}
 
 static odb::dbBlock* getBlock(odb::dbDatabase* db)
 {
@@ -227,7 +277,7 @@ void Gui::pause(int timeout)
   main_window->pause(timeout);
 }
 
-Selected Gui::makeSelected(std::any object, void* additional_data)
+Selected Gui::makeSelected(std::any object)
 {
   if (!object.has_value()) {
     return Selected();
@@ -235,7 +285,7 @@ Selected Gui::makeSelected(std::any object, void* additional_data)
 
   auto it = descriptors_.find(object.type());
   if (it != descriptors_.end()) {
-    return it->second->makeSelected(object, additional_data);
+    return it->second->makeSelected(object);
   } else {
     logger_->warn(utl::GUI,
                   33,
@@ -631,6 +681,15 @@ void Gui::saveImage(const std::string& filename,
   }
 }
 
+void Gui::saveClockTreeImage(const std::string& clock_name,
+                             const std::string& filename)
+{
+  if (!enabled()) {
+    return;
+  }
+  main_window->getClockViewer()->saveImage(clock_name, filename);
+}
+
 void Gui::showWidget(const std::string& name, bool show)
 {
   const QString find_name = QString::fromStdString(name);
@@ -997,6 +1056,7 @@ void Gui::setLogger(utl::Logger* logger)
   }
 
   logger_ = logger;
+  qInstallMessageHandler(message_handler);
 
   if (enabled()) {
     // gui already requested, so go ahead and set the logger
@@ -1051,6 +1111,7 @@ int startGui(int& argc,
   gui->clearContinueAfterClose();
 
   QApplication app(argc, argv);
+  application = &app;
 
   // Default to 12 point for easier reading
   QFont font = QApplication::font();
@@ -1092,6 +1153,7 @@ int startGui(int& argc,
   QObject::connect(main_window, SIGNAL(exit()), &app, SLOT(quit()));
   // Track the exit in case it originated during a script
   bool exit_requested = false;
+  int exit_code = EXIT_SUCCESS;
   QObject::connect(
       main_window, &MainWindow::exit, [&]() { exit_requested = true; });
 
@@ -1109,11 +1171,11 @@ int startGui(int& argc,
   }
   if (!restore_commands.empty()) {
     // Temporarily connect to script widget to get ending tcl state
-    int tcl_return_code = TCL_OK;
-    auto tcl_return_code_connect = QObject::connect(
-        main_window->getScriptWidget(),
-        &ScriptWidget::commandExecuted,
-        [&tcl_return_code](int code) { tcl_return_code = code; });
+    bool tcl_ok = true;
+    auto tcl_return_code_connect
+        = QObject::connect(main_window->getScriptWidget(),
+                           &ScriptWidget::commandExecuted,
+                           [&tcl_ok](bool is_ok) { tcl_ok = is_ok; });
 
     main_window->getScriptWidget()->executeSilentCommand(
         QString::fromStdString(restore_commands));
@@ -1121,13 +1183,15 @@ int startGui(int& argc,
     // disconnect tcl return lister
     QObject::disconnect(tcl_return_code_connect);
 
-    if (tcl_return_code != TCL_OK) {
+    if (!tcl_ok) {
       auto& cmds = gui->getRestoreStateCommands();
       if (cmds[cmds.size() - 1]
           == "exit") {  // exit, will be the last command if it is present
         // if there was a failure and exit was requested, exit with failure
         // this will mirror the behavior of tclAppInit
-        exit(EXIT_FAILURE);
+        gui->clearContinueAfterClose();
+        exit_code = EXIT_FAILURE;
+        exit_requested = true;
       }
     }
   }
@@ -1135,7 +1199,7 @@ int startGui(int& argc,
   // temporary storage for any exceptions thrown by scripts
   utl::ThreadException exception;
   // Execute script
-  if (!script.empty()) {
+  if (!script.empty() && !exit_requested) {
     try {
       main_window->getScriptWidget()->executeCommand(
           QString::fromStdString(script));
@@ -1150,9 +1214,8 @@ int startGui(int& argc,
     do_exec = false;
   }
 
-  int ret = 0;
   if (do_exec) {
-    ret = app.exec();
+    exit_code = app.exec();
   }
 
   // cleanup
@@ -1170,18 +1233,19 @@ int startGui(int& argc,
   // delete main window and set to nullptr
   delete main_window;
   main_window = nullptr;
+  application = nullptr;
 
   resetConversions();
 
   // rethow exception, if one happened after cleanup of main_window
   exception.rethrow();
 
-  if (!gui->isContinueAfterClose()) {
+  if (!gui->isContinueAfterClose() || exit_requested) {
     // if exiting, go ahead and exit with gui return code.
-    exit(ret);
+    exit(exit_code);
   }
 
-  return ret;
+  return exit_code;
 }
 
 void Selected::highlight(Painter& painter,
@@ -1193,7 +1257,7 @@ void Selected::highlight(Painter& painter,
   painter.setPen(pen, true, pen_width);
   painter.setBrush(brush, brush_style);
 
-  return descriptor_->highlight(object_, painter, additional_data_);
+  return descriptor_->highlight(object_, painter);
 }
 
 Descriptor::Properties Selected::getProperties() const

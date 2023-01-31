@@ -234,7 +234,7 @@ frCost FlexGridGraph::getEstCost(const FlexMazeIdx& src,
   getNextGrid(gridX, gridY, gridZ, dir);
   Point nextPoint;
   getPoint(nextPoint, gridX, gridY);
-  // avoid propagating to location that will cause fobidden via spacing to
+  // avoid propagating to location that will cause forbidden via spacing to
   // boundary pin
   if (dstMazeIdx1 == dstMazeIdx2 && gridZ == dstMazeIdx1.z()) {
     if (drWorker_ && drWorker_->getDRIter() >= 30
@@ -490,7 +490,7 @@ frCoord FlexGridGraph::getCostsNDR(frMIdx gridX,
   frCoord sp, wext;
   frCoord layerWidth = max((int) layer->getWidth(), ndr_->getWidth(gridZ));
   sp = max(ndr_->getSpacing(gridZ),
-           getMinSpacingValue(layer, layerWidth, layer->getWidth(), 0));
+           layer->getMinSpacingValue(layerWidth, layer->getWidth(), 0, false));
   wext = max(ndr_->getWireExtension(gridZ), (int) layer->getWidth() / 2)
          - layer->getWidth() / 2;
 
@@ -556,8 +556,8 @@ frCoord FlexGridGraph::getCostsNDR(frMIdx gridX,
   // get costs
   for (frMIdx x = startX; x <= endX; x++) {
     for (frMIdx y = startY; y <= endY; y++) {
-      cost
-          += (hasFixedShapeCostAdj(x, y, gridZ, dir) ? FIXEDSHAPECOST * el : 0);
+      cost += (hasFixedShapeCostAdj(x, y, gridZ, dir) ? ggFixedShapeCost_ * el
+                                                      : 0);
       cost += (hasRouteShapeCostAdj(x, y, gridZ, dir) ? ggDRCCost_ * el : 0);
       cost += (hasMarkerCostAdj(x, y, gridZ, dir) ? ggMarkerCost_ * el : 0);
       cost += (isBlocked(x, y, gridZ, dir)
@@ -580,9 +580,9 @@ frCoord FlexGridGraph::getViaCostsNDR(frMIdx gridX,
   frMIdx startX, startY, endX, endY;
   frCoord x1, x2, y1, y2;
   frCoord layerWidth = max((int) layer->getWidth(), ndr_->getWidth(gridZ));
-  frCoord r,
-      sp = max(ndr_->getSpacing(gridZ),
-               getMinSpacingValue(layer, layerWidth, layer->getWidth(), 0));
+  frCoord r, sp;
+  sp = max(ndr_->getSpacing(gridZ),
+           layer->getMinSpacingValue(layerWidth, layer->getWidth(), 0, false));
 
   // get iteration bounds
   r = layerWidth / 2 + sp + layer->getWidth() / 2 - 1;
@@ -593,8 +593,9 @@ frCoord FlexGridGraph::getViaCostsNDR(frMIdx gridX,
   endX = getUpperBoundIndex(xCoords_, x2 = (xCoords_[gridX] + r));
   startY = getLowerBoundIndex(yCoords_, y1 = (yCoords_[gridY] - r));
   endY = getUpperBoundIndex(yCoords_, y2 = (yCoords_[gridY] + r));
-  cost += (hasFixedShapeCostAdj(gridX, gridY, gridZ, dir) ? FIXEDSHAPECOST * el
-                                                          : 0);
+  cost += (hasFixedShapeCostAdj(gridX, gridY, gridZ, dir)
+               ? ggFixedShapeCost_ * el
+               : 0);
   cost
       += (hasRouteShapeCostAdj(gridX, gridY, gridZ, dir) ? ggDRCCost_ * el : 0);
   cost += (hasMarkerCostAdj(gridX, gridY, gridZ, dir) ? ggMarkerCost_ * el : 0);
@@ -630,8 +631,8 @@ frCoord FlexGridGraph::getViaCostsNDR(frMIdx gridX,
   // get costs
   for (frMIdx x = startX; x <= endX; x++) {
     for (frMIdx y = startY; y <= endY; y++) {
-      cost
-          += (hasFixedShapeCostAdj(x, y, gridZ, dir) ? FIXEDSHAPECOST * el : 0);
+      cost += (hasFixedShapeCostAdj(x, y, gridZ, dir) ? ggFixedShapeCost_ * el
+                                                      : 0);
       cost += (hasRouteShapeCostAdj(x, y, gridZ, dir) ? ggDRCCost_ * el : 0);
       cost += (hasMarkerCostAdj(x, y, gridZ, dir) ? ggMarkerCost_ * el : 0);
     }
@@ -658,7 +659,7 @@ frCost FlexGridGraph::getCosts(frMIdx gridX,
          + (gridCost ? GRIDCOST * edgeLength : 0)
          + (drcCost ? ggDRCCost_ * edgeLength : 0)
          + (markerCost ? ggMarkerCost_ * edgeLength : 0)
-         + (shapeCost ? FIXEDSHAPECOST * edgeLength : 0)
+         + (shapeCost ? ggFixedShapeCost_ * edgeLength : 0)
          + (blockCost ? BLOCKCOST * layer->getMinWidth() * 20 : 0)
          + (!guideCost ? GUIDECOST * edgeLength : 0);
 }
@@ -673,24 +674,6 @@ bool FlexGridGraph::useNDRCosts(const FlexWavefrontGrid& p) const
     return true;
   }
   return false;
-}
-frCoord FlexGridGraph::getMinSpacingValue(frLayer* layer,
-                                          frCoord width1,
-                                          frCoord width2,
-                                          frCoord prl) const
-{
-  auto con = layer->getMinSpacing();
-  if (con->typeId() == frConstraintTypeEnum::frcSpacingConstraint)
-    return static_cast<frSpacingConstraint*>(con)->getMinSpacing();
-
-  if (con->typeId() == frConstraintTypeEnum::frcSpacingTablePrlConstraint)
-    return static_cast<frSpacingTablePrlConstraint*>(con)->find(width1, prl);
-
-  if (con->typeId() == frConstraintTypeEnum::frcSpacingTableTwConstraint)
-    return static_cast<frSpacingTableTwConstraint*>(con)->find(
-        width1, width2, prl);
-  drWorker_->getLogger()->error(
-      utl::ToolId::DRT, 0, "ERROR FlexGridGraph::getMinSpacingValue");
 }
 
 frMIdx FlexGridGraph::getLowerBoundIndex(const frVector<frCoord>& tracks,

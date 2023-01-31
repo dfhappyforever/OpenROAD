@@ -30,13 +30,13 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef ADS_EXT_H
-#define ADS_EXT_H
+#pragma once
 
 #include <tcl.h>
 
+#include <memory>
+
 #include "extRCap.h"
-#include "exttree.h"
 
 namespace utl {
 class Logger;
@@ -54,50 +54,16 @@ class Ext
 {
  public:
   Ext();
-  ~Ext();
+  ~Ext() = default;
 
   void init(Tcl_Interp* tcl_interp, odb::dbDatabase* db, Logger* logger);
   void setLogger(Logger* logger);
 
-  bool load_model(const std::string& name,
-                  bool lef_rc,
-                  const std::string& file,
-                  int setMin,
-                  int setTyp,
-                  int setMax);
-  bool read_process(const std::string& name, const std::string& file);
-  bool rules_gen(const std::string& name,
-                 const std::string& dir,
-                 const std::string& file,
-                 bool write_to_solver,
-                 bool read_from_solver,
-                 bool run_solver,
-                 int pattern,
-                 bool keep_file);
-  bool metal_rules_gen(const std::string& name,
-                       const std::string& dir,
-                       const std::string& file,
-                       bool write_to_solver,
-                       bool read_from_solver,
-                       bool run_solver,
-                       int pattern,
-                       bool keep_file,
-                       int metal);
-  bool write_rules(const std::string& name,
+  void write_rules(const std::string& name,
                    const std::string& dir,
                    const std::string& file,
-                   int pattern,
-                   bool read_from_db,
-                   bool read_from_solver);
-  bool get_ext_metal_count(int& metal_count);
-  bool bench_net(const std::string& dir,
-                 int net,
-                 bool write_to_solver,
-                 bool read_from_solver,
-                 bool run_solver,
-                 int max_track_count);
+                   int pattern);
   bool bench_verilog(const std::string& file);
-  bool run_solver(const std::string& dir, int net, int shape);
 
   struct BenchWiresOptions
   {
@@ -135,59 +101,25 @@ class Ext
   };
 
   bool bench_wires(const BenchWiresOptions& bwo);
-  bool assembly(odb::dbBlock* block, odb::dbBlock* main_block);
   bool write_spef_nets(odb::dbObject* block,
                        bool flatten,
                        bool parallel,
                        int corner);
-  bool flatten(odb::dbBlock* block, bool spef);
 
   struct ExtractOptions
   {
-    bool min = false;
-    bool max = false;
-    bool typ = false;
-    int set_min = -1;
-    int set_typ = -1;
-    int set_max = -1;
-    bool litho = false;
-    bool wire_density = false;
     const char* debug_net = nullptr;
-    const char* cmp_file = nullptr;
     const char* ext_model_file = nullptr;
-    const char* net = nullptr;
-    const char* bbox = nullptr;
-    const char* ibox = nullptr;
-    int test = 0;
-    int cc_band_tracks = 1000;
-    int signal_table = 3;
-    int cc_up = 2;
-    uint preserve_geom = 0;
+    const char* const net = nullptr;
+    const int cc_up = 2;
     int corner_cnt = 1;
     double max_res = 50.0;
     bool no_merge_via_res = false;
     float coupling_threshold = 0.1;
     int context_depth = 5;
     int cc_model = 10;
-    bool over_cell = false;
-    bool remove_cc = false;
-    bool remove_ext = false;
-    bool unlink_ext = false;
-    bool eco = false;
-    bool no_gs = false;
-    bool re_run = false;
-    bool skip_via_wires = false;
-    bool tile = false;
-    int tiling = 0;
-    bool skip_m1_caps = false;
-    bool power_grid = false;
-    bool write_total_caps = false;
-    const char* exclude_cells = nullptr;
-    bool skip_power_stubs = false;
-    const char* power_source_coords = nullptr;
-    bool lef_rc = false;
+    const bool no_gs = false;
     bool lef_res = false;
-    bool rlog = false;
   };
 
   bool extract(ExtractOptions options);
@@ -204,43 +136,35 @@ class Ext
   bool clean(bool all_models, bool ext_only);
   bool adjust_rc(float res_factor, float cc_factor, float gndc_factor);
 
-  bool init_incremental_spef(const std::string& origp,
-                             const std::string& newp,
-                             bool no_backslash,
-                             const std::string& exclude_cells);
   struct SpefOptions
   {
     const char* nets = nullptr;
     int net_id = 0;
     const char* ext_corner_name = nullptr;
-    int corner = -1;
-    int debug = 0;
-    bool flatten = false;
-    bool parallel = false;
-    bool init = false;
-    bool end = false;
-    bool use_ids = false;
-    bool no_name_map = false;
+    const int corner = -1;
+    const int debug = 0;
+    const bool parallel = false;
+    const bool init = false;
+    const bool end = false;
+    const bool use_ids = false;
+    const bool no_name_map = false;
     const char* N = nullptr;
-    bool term_junction_xy = false;
-    bool single_pi = false;
+    const bool term_junction_xy = false;
+    const bool single_pi = false;
     const char* file = nullptr;
-    bool gz = false;
-    bool stop_after_map = false;
-    bool w_clock = false;
-    bool w_conn = false;
-    bool w_cap = false;
-    bool w_cc_cap = false;
-    bool w_res = false;
-    bool no_c_num = false;
-    bool no_backslash = false;
-    const char* exclude_cells = nullptr;
+    const bool gz = false;
+    const bool stop_after_map = false;
+    const bool w_clock = false;
+    const bool w_conn = false;
+    const bool w_cap = false;
+    const bool w_cc_cap = false;
+    const bool w_res = false;
+    const bool no_c_num = false;
+    const bool no_backslash = false;
     const char* cap_units = "PF";
     const char* res_units = "OHM";
   };
   bool write_spef(const SpefOptions& options);
-
-  bool independent_spef_corner();
 
   struct ReadSpefOpts
   {
@@ -304,65 +228,11 @@ class Ext
                  bool m_map,
                  float upper_limit,
                  float lower_limit);
-  bool match(const std::string& spef_file,
-             const std::string& db_corner_name,
-             int corner,
-             int spef_corner,
-             bool m_map);
-  bool set_block(const std::string& block_name,
-                 odb::dbBlock* block,
-                 const std::string& inst_name,
-                 odb::dbInst* inst);
-  bool report_total_cap(const std::string& file,
-                        bool res_only,
-                        bool cap_only,
-                        float ccmult,
-                        const std::string& ref,
-                        const std::string& read);
-  bool report_total_cc(const std::string& file,
-                       const std::string& ref,
-                       const std::string& read);
-
-  bool export_sdb(odb::ZPtr<odb::ISdb>& net_sdb, odb::ZPtr<odb::ISdb>& cc_sdb);
-  bool dump(bool open_tree_file,
-            bool close_tree_file,
-            bool cc_cap_geom,
-            bool cc_net_geom,
-            bool track_cnt,
-            bool signal,
-            bool power,
-            int layer,
-            const std::string& file);
-  bool count(bool signal_wire_seg, bool power_wire_seg);
-  bool read_qcap(const std::string& file_name,
-                 const std::string& cap_file,
-                 bool skip_bterms,
-                 bool no_qcap,
-                 const std::string& design);
-  bool rc_tree(float max_cap, uint test, int net, const std::string& print_tag);
-  bool net_stats(std::list<int>& net_ids,
-                 const std::string& tcap,
-                 const std::string& ccap,
-                 const std::string& ratio_cap,
-                 const std::string& res,
-                 const std::string& len,
-                 const std::string& met_cnt,
-                 const std::string& wire_cnt,
-                 const std::string& via_cnt,
-                 const std::string& seg_cnt,
-                 const std::string& term_cnt,
-                 const std::string& bterm_cnt,
-                 const std::string& file,
-                 const std::string& bbox,
-                 const std::string& branch_len);
 
  private:
-  odb::dbDatabase* _db;
-  extMain* _ext;
-  extRcTree* _tree;
-  Logger* logger_;
+  odb::dbDatabase* _db = nullptr;
+  std::unique_ptr<extMain> _ext;
+  Logger* logger_ = nullptr;
 };  // namespace rcx
 
 }  // namespace rcx
-
-#endif

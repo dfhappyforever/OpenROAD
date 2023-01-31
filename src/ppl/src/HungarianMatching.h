@@ -42,6 +42,7 @@
 #include <list>
 #include <utility>
 
+#include "Core.h"
 #include "Hungarian.h"
 #include "Netlist.h"
 #include "Slots.h"
@@ -61,20 +62,25 @@ class HungarianMatching
 {
  public:
   HungarianMatching(Section& section,
-                    Netlist& netlist,
+                    Netlist* netlist,
+                    Core* core,
                     std::vector<Slot>& slots,
-                    Logger* logger);
+                    Logger* logger,
+                    odb::dbDatabase* db);
   virtual ~HungarianMatching() = default;
   void findAssignment();
   void findAssignmentForGroups();
-  void getFinalAssignment(std::vector<IOPin>& assigment) const;
-  void getAssignmentForGroups(std::vector<IOPin>& assigment);
+  void getFinalAssignment(std::vector<IOPin>& assignment,
+                          MirroredPins& mirrored_pins,
+                          bool assign_mirrored) const;
+  void getAssignmentForGroups(std::vector<IOPin>& assignment);
 
  private:
   std::vector<std::vector<int>> hungarian_matrix_;
   std::vector<int> assignment_;
   HungarianAlgorithm hungarian_solver_;
-  Netlist& netlist_;
+  Netlist* netlist_;
+  Core* core_;
   const std::vector<int>& pin_indices_;
   const std::vector<std::vector<int>>& pin_groups_;
   std::vector<Slot>& slots_;
@@ -89,9 +95,11 @@ class HungarianMatching
   Edge edge_;
   const int hungarian_fail = std::numeric_limits<int>::max();
   Logger* logger_;
+  odb::dbDatabase* db_;
 
   void createMatrix();
   void createMatrixForGroups();
+  int getSlotIdxByPosition(const odb::Point& position, int layer) const;
 };
 
 }  // namespace ppl

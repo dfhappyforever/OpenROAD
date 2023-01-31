@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_GUIDE_H_
-#define _FR_GUIDE_H_
+#pragma once
 
 #include "db/obj/frFig.h"
 #include "frBaseTypes.h"
@@ -122,8 +121,5 @@ class frGuide : public frConnFig
   std::vector<std::unique_ptr<frConnFig>> routeObj_;
   frNet* net_;
   int index_in_owner_;
-
 };
 }  // namespace fr
-
-#endif

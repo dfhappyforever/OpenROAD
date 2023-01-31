@@ -39,7 +39,6 @@
 #include <string>
 
 #include "utl/Logger.h"
-#include "stt/SteinerTreeBuilder.h"
 #include "db_sta/dbSta.hh"
 #include "sta/UnorderedSet.hh"
 #include "sta/Path.hh"
@@ -47,6 +46,10 @@
 namespace grt {
 class GlobalRouter;
 class IncrementalGRoute;
+}
+
+namespace stt {
+class SteinerTreeBuilder;
 }
 
 namespace rsz {
@@ -190,6 +193,7 @@ public:
   bool haveEstimatedParasitics() const;
   void parasiticsInvalid(const Net *net);
   void parasiticsInvalid(const dbNet *net);
+  bool parasiticsValid() const;
 
   // Core area (meters).
   double coreArea() const;
@@ -224,6 +228,9 @@ public:
   ////////////////////////////////////////////////////////////////
 
   void repairSetup(double setup_margin,
+                   // Percent of violating ends to repair to
+                   // reduce tns (0.0-1.0).
+                   double repair_tns_end_percent,
                    int max_passes);
   // For testing.
   void repairSetup(Pin *drvr_pin);
@@ -263,6 +270,7 @@ public:
                        Delay &delay,
                        Slew &slew);
   void setDebugPin(const Pin *pin);
+  void setWorstSlackNetsPercent(float);
 
   ////////////////////////////////////////////////////////////////
 
@@ -311,7 +319,7 @@ public:
   // resizeSlackPreamble must be called before the first findResizeSlacks.
   void resizeSlackPreamble();
   void findResizeSlacks();
-  // Return 10% of nets with worst slack.
+  // Return nets with worst slack.
   NetSeq &resizeWorstSlackNets();
   // Return net slack.
   Slack resizeNetSlack(const Net *net);
@@ -340,7 +348,7 @@ protected:
                         LibertyCell *buffer_cell);
   void bufferOutput(Pin *top_pin,
                     LibertyCell *buffer_cell);
-  bool hasTristateDriver(const Net *net);
+  bool hasTristateOrDontTouchDriver(const Net *net);
   bool isTristateDriver(const Pin *pin);
   void makeEquivCells();
   void findBuffers();
@@ -592,6 +600,7 @@ protected:
   bool buffer_moved_into_core_;
   // Slack map variables.
   float max_wire_length_;
+  float worst_slack_nets_percent_;
   Map<const Net*, Slack> net_slack_map_;
   NetSeq worst_slack_nets_;
 

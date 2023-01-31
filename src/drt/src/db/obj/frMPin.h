@@ -25,8 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_MPIN_H_
-#define _FR_MPIN_H_
+#pragma once
 
 #include <iostream>
 
@@ -42,7 +41,9 @@ class frMPin : public frPin
   frMPin() : frPin(), term_(nullptr) {}
   frMPin(const frMPin& in) : frPin(in), term_(in.term_) {}
   frMPin(const frMPin& in, const dbTransform& xform)
-      : frPin(in, xform), term_(in.term_) {}
+      : frPin(in, xform), term_(in.term_)
+  {
+  }
 
   // getters
   frMTerm* getTerm() const { return term_; }
@@ -55,8 +56,5 @@ class frMPin : public frPin
 
  protected:
   frMTerm* term_;
-
 };
 }  // namespace fr
-
-#endif

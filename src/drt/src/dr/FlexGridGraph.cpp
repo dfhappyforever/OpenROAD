@@ -26,12 +26,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "dr/FlexGridGraph.h"
+
 #include <fstream>
 #include <iostream>
 #include <map>
 
 #include "dr/FlexDR.h"
-#include "dr/FlexGridGraph.h"
 
 using namespace std;
 using namespace fr;
@@ -301,33 +302,46 @@ void FlexGridGraph::initEdges(
       for (int zIdx = startZ; zIdx >= 0 && zIdx < (int) zCoords_.size() - 1;
            zIdx += inc, nextLNum += inc * 2) {
         addEdge(xIdx, yIdx, zIdx, frDirEnum::U, bbox, initDR);
-        auto& xSubMap = xMap[apPt.x()];
-        auto xTrack = xSubMap.find(nextLNum);
-        if (xTrack != xSubMap.end() && xTrack->second != nullptr)
-          break;
-        auto& ySubMap = yMap[apPt.y()];
-        auto yTrack = ySubMap.find(nextLNum);
-        if (yTrack != ySubMap.end() && yTrack->second != nullptr)
-          break;
+        frLayer* nextLayer = getTech()->getLayer(nextLNum);
+        const bool restrictedRouting = nextLayer->isUnidirectional()
+                                       || nextLNum < BOTTOM_ROUTING_LAYER
+                                       || nextLNum > TOP_ROUTING_LAYER;
+        if (!restrictedRouting || nextLayer->isVertical()) {
+          auto& xSubMap = xMap[apPt.x()];
+          auto xTrack = xSubMap.find(nextLNum);
+          if (xTrack != xSubMap.end() && xTrack->second != nullptr)
+            break;
+        }
+        if (!restrictedRouting || nextLayer->isHorizontal()) {
+          auto& ySubMap = yMap[apPt.y()];
+          auto yTrack = ySubMap.find(nextLNum);
+          if (yTrack != ySubMap.end() && yTrack->second != nullptr)
+            break;
+        }
         // didnt find default track, then create tracks if possible
-        bool restrictedRouting
-            = getTech()->getLayer(nextLNum)->isUnidirectional()
-              || nextLNum < BOTTOM_ROUTING_LAYER
-              || nextLNum > TOP_ROUTING_LAYER;
         if (!restrictedRouting && nextLNum >= VIA_ACCESS_LAYERNUM) {
           dbTechLayerDir prefDir
               = design->getTech()->getLayer(nextLNum)->getDir();
           xMap[apPt.x()][nextLNum] = nullptr;  // to keep coherence
           yMap[apPt.y()][nextLNum] = nullptr;
           frMIdx nextZ = up ? zIdx + 1 : zIdx;
+          // This is a value to make sure the edges we are adding will
+          // reach a track on the layer of interest.  It is simpler to
+          // be conservative than trying to figure out how many edges
+          // to add to hit it precisely.  I intend to obviate the need
+          // for this whole approach next.  Note that addEdge checks
+          // for bounds so I don't.
+          const int max_offset = 20;
           if (prefDir == dbTechLayerDir::HORIZONTAL) {
-            addEdge(xIdx, yIdx, nextZ, frDirEnum::N, bbox, initDR);
-            if (yIdx - 1 >= 0)
-              addEdge(xIdx, yIdx - 1, nextZ, frDirEnum::N, bbox, initDR);
+            for (int offset = 0; offset < max_offset; ++offset) {
+              addEdge(xIdx, yIdx + offset, nextZ, frDirEnum::N, bbox, initDR);
+              addEdge(xIdx, yIdx - offset, nextZ, frDirEnum::S, bbox, initDR);
+            }
           } else {
-            addEdge(xIdx, yIdx, nextZ, frDirEnum::E, bbox, initDR);
-            if (xIdx - 1 >= 0)
-              addEdge(xIdx - 1, yIdx, nextZ, frDirEnum::E, bbox, initDR);
+            for (int offset = 0; offset < max_offset; ++offset) {
+              addEdge(xIdx + offset, yIdx, nextZ, frDirEnum::E, bbox, initDR);
+              addEdge(xIdx - offset, yIdx, nextZ, frDirEnum::W, bbox, initDR);
+            }
           }
           break;
         }
@@ -375,7 +389,7 @@ void FlexGridGraph::initTracks(
     frLayerNum currLayerNum = layer->getLayerNum();
     dbTechLayerDir currPrefRouteDir = layer->getDir();
     for (auto& tp : design->getTopBlock()->getTrackPatterns(currLayerNum)) {
-      // allow wrongway if global varialble and design rule allow
+      // allow wrongway if global variable and design rule allow
       bool flag
           = (USENONPREFTRACKS && !layer->isUnidirectional())
                 ? (tp->isHorizontal()

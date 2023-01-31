@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_VIARULEGEN_H_
-#define _FR_VIARULEGEN_H_
+#pragma once
 
 #include <memory>
 
@@ -80,8 +79,5 @@ class frViaRuleGenerate
   frLayerNum botLayerNum;
   frLayerNum cutLayerNum;
   frLayerNum topLayerNum;
-
 };
 }  // namespace fr
-
-#endif

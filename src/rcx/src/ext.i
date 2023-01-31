@@ -66,7 +66,6 @@ extract(const char* ext_model_file,
         int corner_cnt,
         double max_res,
         float coupling_threshold,
-        int signal_table,
         int cc_model,
         int context_depth,
         const char* debug_net_id,
@@ -80,7 +79,6 @@ extract(const char* ext_model_file,
   opts.corner_cnt = corner_cnt;
   opts.max_res = max_res;
   opts.coupling_threshold = coupling_threshold;
-  opts.signal_table = signal_table;
   opts.cc_model = cc_model;
   opts.context_depth = context_depth;
   opts.lef_res = lef_res;
@@ -175,14 +173,11 @@ void
 write_rules(const char* file,
             const char* dir,
             const char* name,
-            int pattern,
-            bool read_from_db,
-            bool read_from_solver)
+            int pattern)
 {
   Ext* ext = getOpenRCX();
   
-  ext->write_rules(name, dir, file, pattern, read_from_db,
-                   read_from_solver);
+  ext->write_rules(name, dir, file, pattern);
 }
 
 void 

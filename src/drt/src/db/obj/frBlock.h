@@ -26,19 +26,18 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_BLOCK_H_
-#define _FR_BLOCK_H_
+#pragma once
 
 #include <algorithm>
 #include <type_traits>
 
+#include "db/obj/frBTerm.h"
 #include "db/obj/frBlockage.h"
 #include "db/obj/frBoundary.h"
 #include "db/obj/frGCellPattern.h"
 #include "db/obj/frInstTerm.h"
 #include "db/obj/frMarker.h"
 #include "db/obj/frNet.h"
-#include "db/obj/frBTerm.h"
 #include "db/obj/frTrackPattern.h"
 #include "frBaseTypes.h"
 
@@ -51,10 +50,7 @@ class frBlock : public frBlockObject
 {
  public:
   // constructors
-  frBlock(const frString& name)
-      : frBlockObject(),
-        name_(name),
-        dbUnit_(0){};
+  frBlock(const frString& name) : frBlockObject(), name_(name), dbUnit_(0){};
   // getters
   frUInt4 getDBUPerUU() const { return dbUnit_; }
   Rect getBBox() const
@@ -158,14 +154,14 @@ class frBlock : public frBlockObject
     }
     return sol;
   }
-  //isHorizontal means vertical tracks
-  std::vector<frTrackPattern*> getTrackPatterns(frCoord layerNum, 
+  // isHorizontal means vertical tracks
+  std::vector<frTrackPattern*> getTrackPatterns(frCoord layerNum,
                                                 bool isHorizontal) const
   {
     std::vector<frTrackPattern*> tps;
     for (auto& t : trackPatterns_.at(layerNum)) {
-        if (t->isHorizontal() == isHorizontal)
-            tps.push_back(t.get());
+      if (t->isHorizontal() == isHorizontal)
+        tps.push_back(t.get());
     }
     return tps;
   }
@@ -210,16 +206,16 @@ class frBlock : public frBlockObject
     auto& xgp = gp[0];
     auto& ygp = gp[1];
     if (idx.x() <= 0) {
-      idx.set(0, idx.y());
+      idx = {0, idx.y()};
     }
     if (idx.y() <= 0) {
-      idx.set(idx.x(), 0);
+      idx = {idx.x(), 0};
     }
     if (idx.x() >= (int) xgp.getCount() - 1) {
-      idx.set((int) xgp.getCount() - 1, idx.y());
+      idx = {(int) xgp.getCount() - 1, idx.y()};
     }
     if (idx.y() >= (int) ygp.getCount() - 1) {
-      idx.set(idx.x(), (int) ygp.getCount() - 1);
+      idx = {idx.x(), (int) ygp.getCount() - 1};
     }
     frCoord xl = (frCoord) xgp.getSpacing() * idx.x() + xgp.getStartCoord();
     frCoord yl = (frCoord) ygp.getSpacing() * idx.y() + ygp.getStartCoord();
@@ -330,7 +326,7 @@ class frBlock : public frBlockObject
                                 }),
                  insts_.end());
     int id = 0;
-    for(const auto& inst : insts_)
+    for (const auto& inst : insts_)
       inst->setId(id++);
   }
   void addNet(std::unique_ptr<frNet> in)
@@ -431,5 +427,3 @@ class frBlock : public frBlockObject
 };
 
 }  // namespace fr
-
-#endif

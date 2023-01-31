@@ -73,8 +73,8 @@ to_string(BufferedNetType type);
 ////////////////////////////////////////////////////////////////
 
 // load
-BufferedNet::BufferedNet(BufferedNetType type,
-                         Point location,
+BufferedNet::BufferedNet(const BufferedNetType type,
+                         const Point location,
                          Pin *load_pin,
                          const Corner *corner,
                          const Resizer *resizer)
@@ -107,10 +107,10 @@ BufferedNet::BufferedNet(BufferedNetType type,
 }
 
 // junc
-BufferedNet::BufferedNet(BufferedNetType type,
-                         Point location,
-                         BufferedNetPtr ref,
-                         BufferedNetPtr ref2,
+BufferedNet::BufferedNet(const BufferedNetType type,
+                         const Point& location,
+                         const BufferedNetPtr ref,
+                         const BufferedNetPtr ref2,
                          const Resizer *resizer)
 {
   if (type != BufferedNetType::junction)
@@ -133,10 +133,10 @@ BufferedNet::BufferedNet(BufferedNetType type,
 }
   
 // wire
-BufferedNet::BufferedNet(BufferedNetType type,
-                         Point location,
-                         int layer,
-                         BufferedNetPtr ref,
+BufferedNet::BufferedNet(const BufferedNetType type,
+                         const Point location,
+                         const int layer,
+                         const BufferedNetPtr ref,
                          const Corner *corner,
                          const Resizer *resizer)
 {
@@ -162,10 +162,10 @@ BufferedNet::BufferedNet(BufferedNetType type,
 }
 
 // buffer
-BufferedNet::BufferedNet(BufferedNetType type,
-                         Point location,
+BufferedNet::BufferedNet(const BufferedNetType type,
+                         const Point& location,
                          LibertyCell *buffer_cell,
-                         BufferedNetPtr ref,
+                         const BufferedNetPtr ref,
                          const Corner *corner,
                          const Resizer *resizer)
 {
@@ -197,7 +197,7 @@ BufferedNet::reportTree(const Resizer *resizer) const
 }
 
 void
-BufferedNet::reportTree(int level,
+BufferedNet::reportTree(const int level,
                         const Resizer *resizer) const
 {
   resizer->logger()->report("{:{}s}{}", "", level, to_string(resizer));
@@ -347,7 +347,7 @@ BufferedNet::wireRC(const Corner *corner,
 }
 
 static const char *
-to_string(BufferedNetType type)
+to_string(const BufferedNetType type)
 {
   switch (type) {
   case BufferedNetType::load:
@@ -376,65 +376,31 @@ Resizer::makeBufferedNet(const Pin *drvr_pin,
   case ParasiticsSrc::none:
     return nullptr;
   }
-  // gcc is stupid
   return nullptr;
 }
 
-typedef vector<vector<SteinerPt>> SteinerPtAdjacents;
+using SteinerPtAdjacents = vector<vector<SteinerPt>>;
+using SteinerPtPinVisited = std::unordered_set<Point, PointHash, PointEqual>;
 
 static BufferedNetPtr
-makeBufferedNet(SteinerTree *tree,
-                SteinerPt from,
-                SteinerPt to,
-                SteinerPtAdjacents &adjacents,
-                int level,
-                const Corner *corner,
-                Resizer *resizer,
-                Logger *logger,
-                Network *network);
-
-// Make BufferedNet from steiner tree.
-BufferedNetPtr
-Resizer::makeBufferedNetSteiner(const Pin *drvr_pin,
-                                const Corner *corner)
-{
-  BufferedNetPtr bnet = nullptr;
-  SteinerTree *tree = makeSteinerTree(drvr_pin);
-  if (tree) {
-    SteinerPt drvr_pt = tree->drvrPt(network_);
-    if (drvr_pt != SteinerTree::null_pt) {
-      int branch_count = tree->branchCount();
-      SteinerPtAdjacents adjacents(branch_count);
-      for (int i = 0; i < branch_count; i++) {
-        stt::Branch &branch_pt = tree->branch(i);
-        SteinerPt j = branch_pt.n;
-        if (j != i) {
-          adjacents[i].push_back(j);
-          adjacents[j].push_back(i);
-        }
-      }
-      bnet = rsz::makeBufferedNet(tree, SteinerTree::null_pt, drvr_pt,
-                                  adjacents, 0, corner, this, logger_, network_);
-    }
-    delete tree;
-  }
-  return bnet;
-}
-
-static BufferedNetPtr
-makeBufferedNet(SteinerTree *tree,
-                SteinerPt from,
-                SteinerPt to,
-                SteinerPtAdjacents &adjacents,
-                int level,
-                const Corner *corner,
-                Resizer *resizer,
-                Logger *logger,
-                Network *network)
+makeBufferedNetFromTree(const SteinerTree *tree,
+                        const SteinerPt from,
+                        const SteinerPt to,
+                        const SteinerPtAdjacents &adjacents,
+                        const int level,
+                        SteinerPtPinVisited& pins_visited,
+                        const Corner *corner,
+                        const Resizer *resizer,
+                        Logger *logger,
+                        const Network *network)
 {
   BufferedNetPtr bnet = nullptr;
   const PinSeq *pins = tree->pins(to);
-  if (pins) {
+  const Point to_loc = tree->location(to);
+  // If there is more than one node at a location we don't want to
+  // add the pins repeatedly.  The first node wins and the rest are skipped.
+  if (pins && pins_visited.find(to_loc) == pins_visited.end()) {
+    pins_visited.insert(to_loc);
     for (Pin *pin : *pins) {
       if (network->isLoad(pin)) {
         BufferedNetPtr bnet1 = make_shared<BufferedNet>(BufferedNetType::load,
@@ -456,9 +422,11 @@ makeBufferedNet(SteinerTree *tree,
   // Steiner pt.
   for (int adj : adjacents[to]) {
     if (adj != from) {
-      BufferedNetPtr bnet1 = makeBufferedNet(tree, to, adj,
-                                             adjacents, level + 1,
-                                             corner, resizer, logger, network);
+      BufferedNetPtr bnet1 = makeBufferedNetFromTree(tree, to, adj,
+                                                     adjacents, level + 1,
+                                                     pins_visited,
+                                                     corner, resizer, logger,
+                                                     network);
       if (bnet1) {
         if (bnet)
           bnet = make_shared<BufferedNet>(BufferedNetType::junction,
@@ -476,6 +444,36 @@ makeBufferedNet(SteinerTree *tree,
                                     tree->location(from),
                                     BufferedNet::null_layer, bnet,
                                     corner, resizer);
+  return bnet;
+}
+
+// Make BufferedNet from steiner tree.
+BufferedNetPtr
+Resizer::makeBufferedNetSteiner(const Pin *drvr_pin,
+                                const Corner *corner)
+{
+  BufferedNetPtr bnet = nullptr;
+  SteinerTree *tree = makeSteinerTree(drvr_pin);
+  if (tree) {
+    SteinerPt drvr_pt = tree->drvrPt(network_);
+    if (drvr_pt != SteinerTree::null_pt) {
+      int branch_count = tree->branchCount();
+      SteinerPtAdjacents adjacents(branch_count);
+      for (int i = 0; i < branch_count; i++) {
+        stt::Branch &branch_pt = tree->branch(i);
+        SteinerPt j = branch_pt.n;
+        if (j != i) {
+          adjacents[i].push_back(j);
+          adjacents[j].push_back(i);
+        }
+      }
+      SteinerPtPinVisited pins_visited;
+      bnet = rsz::makeBufferedNetFromTree(tree, SteinerTree::null_pt, drvr_pt,
+                                          adjacents, 0, pins_visited, corner,
+                                          this, logger_, network_);
+    }
+    delete tree;
+  }
   return bnet;
 }
 
@@ -517,7 +515,15 @@ RoutePtEqual::operator()(const RoutePt &pt1,
     && pt1.y() == pt2.y();
 }
 
-static RoutePt route_pt_null(0, 0, 0);
+static const RoutePt route_pt_null(0, 0, 0);
+
+static bool
+routePtLocEq(const RoutePt& p1,
+             const RoutePt& p2)
+{
+  return p1.x() == p2.x()
+    && p1.y() == p2.y();
+}
 
 static BufferedNetPtr
 makeBufferedNet(RoutePt &from,
@@ -528,7 +534,49 @@ makeBufferedNet(RoutePt &from,
                 const Corner *corner,
                 const Resizer *resizer,
                 Logger *logger,
-                dbNetwork *db_network);
+                dbNetwork *db_network)
+{
+  Point to_pt(to.x(), to.y());
+  const PinSeq &pins = loc_pin_map[to_pt];
+  Point from_pt(from.x(), from.y());
+  BufferedNetPtr bnet = nullptr;
+  for (Pin *pin : pins) {
+    if (db_network->isLoad(pin)) {
+      auto load_bnet = make_shared<BufferedNet>(BufferedNetType::load,
+                                                to_pt, pin, corner, resizer);
+
+      debugPrint(logger, RSZ, "groute_bnet", 2, "{:{}s}{}",
+                 "", level, load_bnet->to_string(resizer));
+      if (bnet)
+        bnet = make_shared<BufferedNet>(BufferedNetType::junction,
+                                        to_pt, bnet, load_bnet, resizer);
+      else
+        bnet = load_bnet;
+    }
+  }
+  for (RoutePt &adj : adjacents[to]) {
+    if (!routePtLocEq(adj, from)) {
+      BufferedNetPtr bnet1 = makeBufferedNet(to, adj, adjacents,
+                                             loc_pin_map, level + 1,
+                                             corner, resizer, logger,
+                                             db_network);
+      if (bnet1) {
+        if (bnet)
+          bnet = make_shared<BufferedNet>(BufferedNetType::junction,
+                                          to_pt, bnet, bnet1, resizer);
+        else
+          bnet = bnet1;
+      }
+    }
+  }
+  if (bnet
+      && !routePtLocEq(from, route_pt_null)
+      && !routePtLocEq(to, from))
+    bnet = make_shared<BufferedNet>(BufferedNetType::wire,
+                                    from_pt, from.layer(),
+                                    bnet, corner, resizer);
+  return bnet;
+}
 
 BufferedNetPtr
 Resizer::makeBufferedNetGroute(const Pin *drvr_pin,
@@ -603,65 +651,6 @@ Resizer::makeBufferedNetGroute(const Pin *drvr_pin,
     logger_->warn(RSZ, 74, "driver pin {} not found in global route grid points",
                   db_network_->pathName(drvr_pin));
   return nullptr;
-}
-
-static bool
-routePtLocEq(const RoutePt& p1,
-             const RoutePt& p2)
-{
-  return p1.x() == p2.x()
-    && p1.y() == p2.y();
-}
-
-static BufferedNetPtr
-makeBufferedNet(RoutePt &from,
-                RoutePt &to,
-                GRoutePtAdjacents &adjacents,
-                LocPinMap &loc_pin_map,
-                int level,
-                const Corner *corner,
-                const Resizer *resizer,
-                Logger *logger,
-                dbNetwork *db_network)
-{
-  Point to_pt(to.x(), to.y());
-  const PinSeq &pins = loc_pin_map[to_pt];
-  Point from_pt(from.x(), from.y());
-  BufferedNetPtr bnet = nullptr;
-  for (Pin *pin : pins) {
-    if (db_network->isLoad(pin)) {
-      auto load_bnet = make_shared<BufferedNet>(BufferedNetType::load,
-                                                to_pt, pin, corner, resizer);
-
-      debugPrint(logger, RSZ, "groute_bnet", 2, "{:{}s}{}",
-                 "", level, load_bnet->to_string(resizer));
-      if (bnet)
-        bnet = make_shared<BufferedNet>(BufferedNetType::junction,
-                                        to_pt, bnet, load_bnet, resizer);
-      else
-        bnet = load_bnet;
-    }
-  }
-  for (RoutePt &adj : adjacents[to]) {
-    if (!routePtLocEq(adj, from)) {
-      BufferedNetPtr bnet1 = makeBufferedNet(to, adj, adjacents,
-                                             loc_pin_map, level + 1,
-                                             corner, resizer, logger,
-                                             db_network);
-      if (bnet)
-        bnet = make_shared<BufferedNet>(BufferedNetType::junction,
-                                        to_pt, bnet, bnet1, resizer);
-      else
-        bnet = bnet1;
-    }
-  }
-  if (bnet
-      && !routePtLocEq(from, route_pt_null)
-      && !routePtLocEq(to, from))
-    bnet = make_shared<BufferedNet>(BufferedNetType::wire,
-                                    from_pt, from.layer(),
-                                    bnet, corner, resizer);
-  return bnet;
 }
 
 }

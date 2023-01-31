@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_FLEXGC_H_
-#define _FR_FLEXGC_H_
+#pragma once
 
 #include <memory>
 
@@ -39,7 +38,6 @@ class drPatchWire;
 class FlexDRWorker;
 class gcNet;
 class gcPin;
-
 
 class FlexGCWorker
 {
@@ -80,11 +78,22 @@ class FlexGCWorker
   // used in rp_prep
   void checkMinStep(gcPin* pin);
   void updateGCWorker();
+
  private:
   class Impl;
   std::unique_ptr<Impl> impl_;
-
+};
+struct MarkerId
+{
+  Rect box;
+  frLayerNum lNum;
+  frConstraint* con;
+  frBlockObject* src1;
+  frBlockObject* src2;
+  bool operator<(const MarkerId& rhs) const
+  {
+    return std::tie(box, lNum, con, src1, src2)
+           < std::tie(rhs.box, rhs.lNum, rhs.con, rhs.src1, rhs.src2);
+  }
 };
 }  // namespace fr
-
-#endif

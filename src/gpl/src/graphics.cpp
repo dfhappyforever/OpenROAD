@@ -1,8 +1,9 @@
+#include "graphics.h"
+
 #include <algorithm>
 #include <cstdio>
 #include <limits>
 
-#include "graphics.h"
 #include "nesterovBase.h"
 #include "nesterovPlace.h"
 #include "placerBase.h"
@@ -10,8 +11,7 @@
 
 namespace gpl {
 
-Graphics::Graphics(utl::Logger* logger,
-                   std::shared_ptr<PlacerBase> pb)
+Graphics::Graphics(utl::Logger* logger, std::shared_ptr<PlacerBase> pb)
     : pb_(pb),
       nb_(),
       np_(nullptr),
@@ -26,7 +26,8 @@ Graphics::Graphics(utl::Logger* logger,
                    NesterovPlace* np,
                    std::shared_ptr<PlacerBase> pb,
                    std::shared_ptr<NesterovBase> nb,
-                   bool draw_bins)
+                   bool draw_bins,
+                   odb::dbInst* inst)
     : pb_(pb),
       nb_(nb),
       np_(np),
@@ -35,6 +36,16 @@ Graphics::Graphics(utl::Logger* logger,
       logger_(logger)
 {
   gui::Gui::get()->registerRenderer(this);
+
+  if (inst) {
+    for (GCell* cell : nb_->gCells()) {
+      Instance* cell_inst = cell->instance();
+      if (cell_inst && cell_inst->dbInst() == inst) {
+        selected_ = cell;
+        break;
+      }
+    }
+  }
 }
 
 void Graphics::drawBounds(gui::Painter& painter)
@@ -181,9 +192,11 @@ void Graphics::reportSelected()
     for (auto& gPin : selected_->gPins()) {
       FloatPoint wlGrad
           = nb_->getWireLengthGradientPinWA(gPin, wlCoeffX, wlCoeffY);
-      logger_->report("          ({:+.2e}, {:+.2e}) pin {}",
+      const float weight = gPin->gNet()->totalWeight();
+      logger_->report("          ({:+.2e}, {:+.2e}) (weight = {}) pin {}",
                       wlGrad.x,
                       wlGrad.y,
+                      weight,
                       gPin->pin()->name());
     }
 
@@ -212,7 +225,8 @@ void Graphics::cellPlot(bool pause)
   }
 }
 
-gui::SelectionSet Graphics::select(odb::dbTechLayer* layer, const odb::Rect& region)
+gui::SelectionSet Graphics::select(odb::dbTechLayer* layer,
+                                   const odb::Rect& region)
 {
   selected_ = nullptr;
 
@@ -229,7 +243,8 @@ gui::SelectionSet Graphics::select(odb::dbTechLayer* layer, const odb::Rect& reg
     int xh = gcx + cell->dx() / 2;
     int yh = gcy + cell->dy() / 2;
 
-    if (region.xMax() < xl || region.yMax() < yl || region.xMin() > xh || region.yMin() > yh) {
+    if (region.xMax() < xl || region.yMax() < yl || region.xMin() > xh
+        || region.yMin() > yh) {
       continue;
     }
 

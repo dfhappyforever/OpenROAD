@@ -5,13 +5,11 @@
 [INFO ODB-0222] Reading LEF file: sky130hs/sky130hs_std_cell.lef
 [INFO ODB-0225]     Created 390 library cells
 [INFO ODB-0226] Finished LEF file:  sky130hs/sky130hs_std_cell.lef
-[INFO ODB-0127] Reading DEF file: gcd_sky130.def
 [INFO ODB-0128] Design: gcd
 [INFO ODB-0130]     Created 54 pins.
 [INFO ODB-0131]     Created 1360 components and 6650 component-terminals.
 [INFO ODB-0132]     Created 2 special nets and 0 connections.
 [INFO ODB-0133]     Created 411 nets and 1210 connections.
-[INFO ODB-0134] Finished DEF file: gcd_sky130.def
 [INFO DRT-0167] List of default vias:
   Layer mcon
     default via: L1M1_PR
@@ -59,31 +57,32 @@
 Layer     Direction    Resources     Resources    Reduction (%)
 ---------------------------------------------------------------
 li1        Vertical            0             0          0.00%
-met1       Horizontal      31939          6041          81.09%
-met2       Vertical        25215          7360          70.81%
-met3       Horizontal      15129          7040          53.47%
-met4       Vertical        10086          4968          50.74%
-met5       Horizontal       3362          1680          50.03%
+met1       Horizontal      31939          4481          85.97%
+met2       Vertical        25215          7302          71.04%
+met3       Horizontal      15129          7000          53.73%
+met4       Vertical        10086          4812          52.29%
+met5       Horizontal       3362          1720          48.84%
 ---------------------------------------------------------------
 
-[INFO GRT-0197] Via related to pin nodes: 1864
-[INFO GRT-0198] Via related Steiner nodes: 97
+[INFO GRT-0101] Running extra iterations to remove overflow.
+[INFO GRT-0197] Via related to pin nodes: 1999
+[INFO GRT-0198] Via related Steiner nodes: 84
 [INFO GRT-0199] Via filling finished.
-[INFO GRT-0111] Final number of vias: 2243
-[INFO GRT-0112] Final usage 3D: 9695
+[INFO GRT-0111] Final number of vias: 2401
+[INFO GRT-0112] Final usage 3D: 10180
 
 [INFO GRT-0096] Final congestion report:
 Layer         Resource        Demand        Usage (%)    Max H / Max V / Total Overflow
 ---------------------------------------------------------------------------------------
 li1                  0             0            0.00%             0 /  0 /  0
-met1              6041          1112           18.41%             0 /  0 /  0
-met2              7360          1238           16.82%             0 /  0 /  0
-met3              7040           397            5.64%             0 /  0 /  0
-met4              4968           219            4.41%             0 /  0 /  0
-met5              1680             0            0.00%             0 /  0 /  0
+met1              4481          1025           22.87%             0 /  0 /  0
+met2              7302          1296           17.75%             0 /  0 /  0
+met3              7000           429            6.13%             0 /  0 /  0
+met4              4812           227            4.72%             0 /  0 /  0
+met5              1720             0            0.00%             0 /  0 /  0
 ---------------------------------------------------------------------------------------
-Total            27089          2966           10.95%             0 /  0 /  0
+Total            25315          2977           11.76%             0 /  0 /  0
 
-[INFO GRT-0018] Total wirelength: 30664 um
+[INFO GRT-0018] Total wirelength: 31845 um
 [INFO GRT-0014] Routed nets: 411
 No differences found.

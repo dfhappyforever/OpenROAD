@@ -3,12 +3,10 @@
 [INFO ODB-0224]     Created 27 technology vias
 [INFO ODB-0225]     Created 135 library cells
 [INFO ODB-0226] Finished LEF file:  Nangate45/Nangate45.lef
-[INFO ODB-0127] Reading DEF file: congestion3.def
 [INFO ODB-0128] Design: gcd
 [INFO ODB-0130]     Created 54 pins.
 [INFO ODB-0131]     Created 508 components and 2514 component-terminals.
 [INFO ODB-0133]     Created 579 nets and 1498 connections.
-[INFO ODB-0134] Finished DEF file: congestion3.def
 [INFO GRT-0020] Min routing layer: metal3
 [INFO GRT-0021] Max routing layer: metal3
 [INFO GRT-0022] Global adjustment: 0%
@@ -29,8 +27,8 @@ Layer     Direction    Resources     Resources    Reduction (%)
 ---------------------------------------------------------------
 metal1     Horizontal          0             0          0.00%
 metal2     Vertical            0             0          0.00%
-metal3     Horizontal      33840          2806          91.71%
+metal3     Horizontal      33840          2852          91.57%
 ---------------------------------------------------------------
 
-[ERROR GRT-0229] Vertical edge usage exceeds the maximum allowed.
+[ERROR GRT-0229] Vertical edge usage exceeds the maximum allowed. (1, 6) usage=1 limit=0
 GRT-0229

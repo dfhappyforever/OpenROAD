@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_GCELLPATTERN_H_
-#define _FR_GCELLPATTERN_H_
+#pragma once
 
 #include "db/obj/frBlockObject.h"
 
@@ -57,8 +56,5 @@ class frGCellPattern : public frBlockObject
   frCoord startCoord_;
   frUInt4 spacing_;
   frUInt4 count_;
-
 };
 }  // namespace fr
-
-#endif

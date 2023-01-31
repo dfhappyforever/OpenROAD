@@ -58,6 +58,7 @@ sta::define_cmd_args "detailed_route" {
     [-no_pin_access]
     [-min_access_points count]
     [-save_guide_updates]
+    [-repair_pdn_vias layer]
 }
 
 proc detailed_route { args } {
@@ -65,7 +66,8 @@ proc detailed_route { args } {
     keys {-param -output_maze -output_drc -output_cmap -output_guide_coverage \
       -db_process_node -droute_end_iter -via_in_pin_bottom_layer \
       -via_in_pin_top_layer -or_seed -or_k -bottom_routing_layer \
-      -top_routing_layer -verbose -remote_host -remote_port -shared_volume -cloud_size -min_access_points} \
+      -top_routing_layer -verbose -remote_host -remote_port -shared_volume \
+      -cloud_size -min_access_points -repair_pdn_vias} \
     flags {-disable_via_gen -distributed -clean_patches -no_pin_access -single_step_dr -save_guide_updates}
   sta::check_argc_eq0 "detailed_route" $args
 
@@ -83,6 +85,11 @@ proc detailed_route { args } {
       drt::detailed_route_cmd $keys(-param)
     }
   } else {
+    if { [info exists keys(-repair_pdn_vias)] } {
+      set repair_pdn_vias $keys(-repair_pdn_vias)
+    } else {
+      set repair_pdn_vias ""
+    }
     if { [info exists keys(-output_maze)] } {
       set output_maze $keys(-output_maze)
     } else {
@@ -188,7 +195,7 @@ proc detailed_route { args } {
       $output_guide_coverage $db_process_node $enable_via_gen $droute_end_iter \
       $via_in_pin_bottom_layer $via_in_pin_top_layer \
       $or_seed $or_k $bottom_routing_layer $top_routing_layer $verbose \
-      $clean_patches $no_pin_access $single_step_dr $min_access_points $save_guide_updates
+      $clean_patches $no_pin_access $single_step_dr $min_access_points $save_guide_updates $repair_pdn_vias
   }
 }
 
@@ -199,6 +206,7 @@ proc detailed_route_num_drvs { args } {
 
 sta::define_cmd_args "detailed_route_debug" {
     [-pa]
+    [-ta]
     [-dr]
     [-maze]
     [-net name]
@@ -215,7 +223,7 @@ sta::define_cmd_args "detailed_route_debug" {
 proc detailed_route_debug { args } {
   sta::parse_key_args "detailed_route_debug" args \
       keys {-net -worker -iter -pin -dump_dir} \
-      flags {-dr -maze -pa -pa_markers -pa_edge -pa_commit -dump_dr}
+      flags {-dr -maze -pa -pa_markers -pa_edge -pa_commit -dump_dr -ta}
 
   sta::check_argc_eq0 "detailed_route_debug" $args
 
@@ -226,6 +234,7 @@ proc detailed_route_debug { args } {
   set pa_markers [info exists flags(-pa_markers)]
   set pa_edge [info exists flags(-pa_edge)]
   set pa_commit [info exists flags(-pa_commit)]
+  set ta [info exists flags(-ta)]
 
   if { [info exists keys(-net)] } {
     set net_name $keys(-net)
@@ -266,8 +275,9 @@ proc detailed_route_debug { args } {
   }
 
   drt::set_detailed_route_debug_cmd $net_name $pin_name $dr $dump_dr $pa $maze \
-      $worker_x $worker_y $iter $pa_markers $pa_edge $pa_commit $dump_dir
+      $worker_x $worker_y $iter $pa_markers $pa_edge $pa_commit $dump_dir $ta
 }
+
 sta::define_cmd_args "pin_access" {
     [-db_process_node name]
     [-bottom_routing_layer layer]
@@ -313,12 +323,13 @@ proc pin_access { args } {
 
 sta::define_cmd_args "detailed_route_run_worker" {
     [-dump_dir dir]
+    [-worker_dir dir]
     [-drc_rpt drc]
 }
 
 proc detailed_route_run_worker { args } {
   sta::parse_key_args "detailed_route_run_worker" args \
-      keys {-dump_dir -drc_rpt} \
+      keys {-dump_dir -worker_dir -drc_rpt} \
       flags {}
   sta::check_argc_eq0 "detailed_route_run_worker" $args
   if { [info exists keys(-dump_dir)] } {
@@ -327,25 +338,33 @@ proc detailed_route_run_worker { args } {
     utl::error DRT 517 "-dump_dir is required for detailed_route_run_worker command"
   }
 
+  if { [info exists keys(-worker_dir)] } {
+    set worker_dir $keys(-worker_dir)
+  } else {
+    utl::error DRT 520 "-worker_dir is required for detailed_route_run_worker command"
+  }
+
   if { [info exists keys(-drc_rpt)] } {
     set drc_rpt $keys(-drc_rpt)
   } else {
-    utl::error DRT 518 "-drc_rpt is required for detailed_route_run_worker command"
+    set drc_rpt ""
   }
-  drt::run_worker_cmd  $dump_dir $drc_rpt
+  drt::run_worker_cmd  $dump_dir $worker_dir $drc_rpt
 }
 
 sta::define_cmd_args "detailed_route_worker_debug" {
     [-maze_end_iter iter]
     [-drc_cost d_cost]
     [-marker_cost m_cost]
+    [-fixed_shape_cost f_cost]
+    [-marker_decay m_decay]
     [-ripup_mode mode]
     [-follow_guide f_guide]
 }
 
 proc detailed_route_worker_debug { args } {
   sta::parse_key_args "detailed_route_worker_debug" args \
-      keys {-maze_end_iter -drc_cost -marker_cost -ripup_mode -follow_guide} \
+      keys {-maze_end_iter -drc_cost -marker_cost -fixed_shape_cost -marker_decay -ripup_mode -follow_guide} \
       flags {}
   if [info exists keys(-maze_end_iter)] {
     set maze_end_iter $keys(-maze_end_iter)
@@ -365,6 +384,18 @@ proc detailed_route_worker_debug { args } {
     set marker_cost -1
   }
 
+  if [info exists keys(-fixed_shape_cost)] {
+    set fixed_shape_cost $keys(-fixed_shape_cost)
+  } else {
+    set fixed_shape_cost -1
+  }
+
+  if [info exists keys(-marker_decay)] {
+    set marker_decay $keys(-marker_decay)
+  } else {
+    set marker_decay -1
+  }
+
   if [info exists keys(-ripup_mode)] {
     set ripup_mode $keys(-ripup_mode)
   } else {
@@ -376,7 +407,7 @@ proc detailed_route_worker_debug { args } {
   } else {
     set follow_guide -1
   }
-  drt::set_worker_debug_params $maze_end_iter $drc_cost $marker_cost $ripup_mode $follow_guide
+  drt::set_worker_debug_params $maze_end_iter $drc_cost $marker_cost $fixed_shape_cost $marker_decay $ripup_mode $follow_guide
 }
 
 proc detailed_route_set_default_via { args } {
@@ -393,8 +424,8 @@ namespace eval drt {
 
 proc step_dr { args } {
   # args match FlexDR::SearchRepairArgs
-  if { [llength $args] != 7 } {
-    utl::error DRT 308 "step_dr requires seven positional arguments."
+  if { [llength $args] != 9 } {
+    utl::error DRT 308 "step_dr requires nine positional arguments."
   }
 
   drt::detailed_route_step_drt {*}$args
@@ -422,7 +453,7 @@ proc check_drc { args } {
   } else {
     utl::error DRT 613 "-output_file is required for check_drc command"
   }
-  drt::check_drc $output_file $x1 $y1 $x2 $y2
+  drt::check_drc_cmd $output_file $x1 $y1 $x2 $y2
 }
 
 }

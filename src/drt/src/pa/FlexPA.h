@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_FLEXPA_H_
-#define _FR_FLEXPA_H_
+#pragma once
 
 #include <boost/polygon/polygon.hpp>
 
@@ -127,6 +126,7 @@ class FlexPA
   void initPinAccess();
   void initTrackCoords();
   void initViaRawPriority();
+  void checkFigsOnGrid(const frMPin* pin);
   // prep
   void prep();
   void prepPoint();
@@ -422,5 +422,3 @@ class FlexDPNode
   int prevNodeIdx_;
 };
 }  // namespace fr
-
-#endif

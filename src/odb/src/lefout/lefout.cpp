@@ -32,15 +32,50 @@
 
 #include "odb/lefout.h"
 
-#include "odb/dbShape.h"
 #include <stdio.h>
 
 #include <algorithm>
+#include <boost/polygon/polygon.hpp>
 
 #include "odb/db.h"
+#include "odb/dbShape.h"
 #include "odb/dbTransform.h"
 
+using namespace boost::polygon::operators;
 using namespace odb;
+
+int lefout::determineBloat(dbTechLayer* layer) const
+{
+  int bloat = 0;
+
+  const int pitch = layer->getPitch();
+  if (pitch != 0) {
+    bloat = pitch;
+  } else {
+    bloat = 2 * layer->getSpacing();
+  }
+  return bloat_factor_ * bloat;
+}
+
+void lefout::insertObstruction(dbBox* box, ObstructionMap& obstructions) const
+{
+  insertObstruction(box->getTechLayer(), box->getBox(), obstructions);
+}
+
+void lefout::insertObstruction(dbTechLayer* layer,
+                               const Rect& rect,
+                               ObstructionMap& obstructions) const
+{
+  if (layer->getType() == odb::dbTechLayerType::CUT) {
+    return;
+  }
+
+  const int bloat = determineBloat(layer);
+  boost::polygon::polygon_90_set_data<int> poly;
+  poly = boost::polygon::rectangle_data<int>{
+      rect.xMax(), rect.yMax(), rect.xMin(), rect.yMin()};
+  obstructions[layer] += poly.bloat(bloat, bloat, bloat, bloat);
+}
 
 void lefout::writeVersion(const char* version)
 {
@@ -96,12 +131,29 @@ void lefout::writeBoxes(dbSet<GenericBox>& boxes, const char* indent)
   }
 }
 
-void lefout::writeBox(std::string indent, dbBox* box)
+void lefout::writeBox(const std::string& indent, dbBox* box)
 {
   int x1 = box->xMin();
   int y1 = box->yMin();
   int x2 = box->xMax();
   int y2 = box->yMax();
+
+  fprintf(_out,
+          "%s  RECT  %g %g %g %g ;\n",
+          indent.c_str(),
+          lefdist(x1),
+          lefdist(y1),
+          lefdist(x2),
+          lefdist(y2));
+}
+
+void lefout::writeRect(const std::string& indent,
+                       const boost::polygon::rectangle_data<int>& rect)
+{
+  int x1 = boost::polygon::xl(rect);
+  int y1 = boost::polygon::yl(rect);
+  int x2 = boost::polygon::xh(rect);
+  int y2 = boost::polygon::yh(rect);
 
   fprintf(_out,
           "%s  RECT  %g %g %g %g ;\n",
@@ -132,36 +184,87 @@ void lefout::writeHeader(dbBlock* db_block)
   writeVersion("5.8");
   writeBusBitChars(left_bus_delimeter, right_bus_delimeter);
   writeDividerChar(hier_delimeter);
-  writeUnits(/*database_units = */db_block->getDbUnitsPerMicron());
+  writeUnits(/*database_units = */ db_block->getDbUnitsPerMicron());
 }
 
 void lefout::writeObstructions(dbBlock* db_block)
 {
-  std::set<dbTechLayer*> obstruction_layers;
-  getTechLayerObstructions(db_block, obstruction_layers);
+  ObstructionMap obstructions;
+  getObstructions(db_block, obstructions);
 
   fprintf(_out, "  OBS\n");
   dbBox* block_bounding_box = db_block->getBBox();
-  for (dbTechLayer* tech_layer : obstruction_layers) {
+  for (const auto& [tech_layer, polySet] : obstructions) {
     fprintf(_out, "    LAYER %s ;\n", tech_layer->getName().c_str());
-    writeBox("  ", block_bounding_box);
+
+    if (bloat_occupied_layers_) {
+      writeBox("   ", block_bounding_box);
+    } else {
+      const int bloat = determineBloat(tech_layer);
+      boost::polygon::polygon_90_set_data<int> shrink_poly = polySet;
+      shrink_poly.shrink2(bloat, bloat, bloat, bloat);
+
+      // Decompose the polygon set to rectanges in non-preferred direction
+      std::vector<boost::polygon::rectangle_data<int>> rects;
+      if (tech_layer->getDirection() == odb::dbTechLayerDir::HORIZONTAL) {
+        shrink_poly.get_rectangles(rects, boost::polygon::VERTICAL);
+      } else if (tech_layer->getDirection() == odb::dbTechLayerDir::VERTICAL) {
+        shrink_poly.get_rectangles(rects, boost::polygon::HORIZONTAL);
+      } else if (tech_layer->getDirection() == odb::dbTechLayerDir::NONE) {
+        shrink_poly.get_rectangles(rects);
+      }
+
+      for (const auto& rect : rects) {
+        writeRect("   ", rect);
+      }
+    }
   }
   fprintf(_out, "  END\n");
 }
 
-void lefout::getTechLayerObstructions(
-    dbBlock* db_block,
-    std::set<dbTechLayer*>& obstruction_layers) const
+void lefout::getObstructions(dbBlock* db_block,
+                             ObstructionMap& obstructions) const
 {
+  for (dbObstruction* obs : db_block->getObstructions()) {
+    insertObstruction(obs->getBBox(), obstructions);
+  }
+
+  findInstsObstructions(obstructions, db_block);
+
   for (dbNet* net : db_block->getNets()) {
-    findSWireLayerObstructions(obstruction_layers, net);
-    findWireLayerObstructions(obstruction_layers, net);
+    findSWireLayerObstructions(obstructions, net);
+    findWireLayerObstructions(obstructions, net);
   }
 }
 
-void lefout::findSWireLayerObstructions(
-    std::set<dbTechLayer*>& obstruction_layers,
-    dbNet* net) const
+void lefout::findInstsObstructions(ObstructionMap& obstructions,
+                                   dbBlock* db_block) const
+{  // Find all insts obsturctions and Iterms
+
+  for (auto* inst : db_block->getInsts()) {
+    dbTransform trans;
+    inst->getTransform(trans);
+
+    // Add insts obstructions
+    for (auto* obs : inst->getMaster()->getObstructions()) {
+      Rect obs_rect = obs->getBox();
+      trans.apply(obs_rect);
+      insertObstruction(obs->getTechLayer(), obs_rect, obstructions);
+    }
+
+    // Add inst Iterms to obstructions
+    for (auto* iterm : inst->getITerms()) {
+      dbShape shape;
+      dbITermShapeItr iterm_shape_itr;
+      for (iterm_shape_itr.begin(iterm); iterm_shape_itr.next(shape);) {
+        insertObstruction(shape.getTechLayer(), shape.getBox(), obstructions);
+      }
+    }
+  }
+}
+
+void lefout::findSWireLayerObstructions(ObstructionMap& obstructions,
+                                        dbNet* net) const
 {  // Find all layers where an swire exists
   for (dbSWire* swire : net->getSWires()) {
     for (dbSBox* box : swire->getWires()) {
@@ -171,16 +274,16 @@ void lefout::findSWireLayerObstructions(
         // In these cases the metal layer should still be blocked even though
         // we can't find any metal wires on the layer.
         // https://github.com/The-OpenROAD-Project/OpenROAD/pull/725#discussion_r669927312
-        findLayerViaObstructions(obstruction_layers, box);
+        findLayerViaObstructions(obstructions, box);
       } else {
-        obstruction_layers.insert(box->getTechLayer());
+        insertObstruction(box, obstructions);
       }
     }
   }
 }
-void lefout::findLayerViaObstructions(
-    std::set<dbTechLayer*>& obstruction_layers,
-    dbSBox* box) const
+
+void lefout::findLayerViaObstructions(ObstructionMap& obstructions,
+                                      dbSBox* box) const
 {
   std::vector<dbShape> via_shapes;
   box->getViaBoxes(via_shapes);
@@ -188,12 +291,12 @@ void lefout::findLayerViaObstructions(
     if (db_shape.isViaBox()) {
       continue;
     }
-    obstruction_layers.insert(db_shape.getTechLayer());
+    insertObstruction(db_shape.getTechLayer(), db_shape.getBox(), obstructions);
   }
 }
-void lefout::findWireLayerObstructions(
-    std::set<dbTechLayer*>& obstruction_layers,
-    dbNet* net) const
+
+void lefout::findWireLayerObstructions(ObstructionMap& obstructions,
+                                       dbNet* net) const
 {
   // Find all metal layers where a wire exists.
   dbWire* wire = net->getWire();
@@ -209,7 +312,7 @@ void lefout::findWireLayerObstructions(
     if (shape.isVia()) {
       continue;
     }
-    obstruction_layers.insert(shape.getTechLayer());
+    insertObstruction(shape.getTechLayer(), shape.getBox(), obstructions);
   }
 }
 
@@ -749,8 +852,13 @@ void lefout::writeLayer(dbTechLayer* layer)
   if (layer->getDirection() != dbTechLayerDir::NONE)
     fprintf(_out, "    DIRECTION %s ;\n", layer->getDirection().getString());
 
-  if (layer->getResistance() != 0.0)
-    fprintf(_out, "    RESISTANCE RPERSQ %g ;\n", layer->getResistance());
+  if (layer->getResistance() != 0.0) {
+    if (layer->getType() == dbTechLayerType::CUT) {
+      fprintf(_out, "    RESISTANCE %g ;\n", layer->getResistance());
+    } else {
+      fprintf(_out, "    RESISTANCE RPERSQ %g ;\n", layer->getResistance());
+    }
+  }
 
   if (layer->getCapacitance() != 0.0)
     fprintf(_out, "    CAPACITANCE CPERSQDIST %g ;\n", layer->getCapacitance());

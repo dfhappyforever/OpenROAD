@@ -33,7 +33,6 @@
 #include "displayControls.h"
 
 #include <QApplication>
-#include <QDebug>
 #include <QFontDialog>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -411,7 +410,7 @@ DisplayControls::DisplayControls(QWidget* parent)
 
   // Rows
   row_color_ = QColor(0, 0xff, 0, 0x70);
-  makeParentItem(rows_, "Rows", root, Qt::Unchecked, false, row_color_);
+  makeParentItem(rows_, "Rows", root, Qt::Unchecked, true, row_color_);
 
   // Rows
   makeParentItem(pin_markers_, "Pin Markers", root, Qt::Checked);
@@ -1534,6 +1533,11 @@ bool DisplayControls::areRowsVisible()
   return isRowVisible(&rows_);
 }
 
+bool DisplayControls::areRowsSelectable()
+{
+  return isRowSelectable(&rows_);
+}
+
 QColor DisplayControls::rowColor()
 {
   return row_color_;
@@ -1810,11 +1814,12 @@ void DisplayControls::buildRestoreTclCommands(std::vector<std::string>& cmds,
       buildRestoreTclCommands(cmds, item, name + "/");
     } else {
       bool visible = parent->child(r, Visible)->checkState() == Qt::Checked;
-      cmds.push_back(fmt::format(visible_restore, name, visible));
+      cmds.push_back(fmt::format(FMT_RUNTIME(visible_restore), name, visible));
       auto* selectable = parent->child(r, Selectable);
       if (selectable != nullptr) {
         bool select = selectable->checkState() == Qt::Checked;
-        cmds.push_back(fmt::format(selectable_restore, name, select));
+        cmds.push_back(
+            fmt::format(FMT_RUNTIME(selectable_restore), name, select));
       }
     }
   }

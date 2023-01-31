@@ -183,7 +183,6 @@ void FlexGCWorker::Impl::initDesign(const frDesign* design, bool skipDR)
                  point_t(extBox.xMax(), extBox.yMax()));
   auto regionQuery = design->getRegionQuery();
   frRegionQuery::Objects<frBlockObject> queryResult;
-  int cnt = 0;
   // init all non-dr objs from design
   for (auto i = 0; i <= getTech()->getTopLayerNum(); i++) {
     queryResult.clear();
@@ -193,14 +192,12 @@ void FlexGCWorker::Impl::initDesign(const frDesign* design, bool skipDR)
         continue;
       }
       initObj(box, i, obj, true);
-      cnt++;
     }
   }
   // init all dr objs from design
   if (getDRWorker() || skipDR) {
     return;
   }
-  cnt = 0;
   for (auto i = getTech()->getBottomLayerNum();
        i <= getTech()->getTopLayerNum();
        i++) {
@@ -211,7 +208,6 @@ void FlexGCWorker::Impl::initDesign(const frDesign* design, bool skipDR)
         continue;
       }
       initObj(box, i, obj, false);
-      cnt++;
     }
   }
 }
@@ -419,27 +415,36 @@ void FlexGCWorker::Impl::initNetsFromDesign(const frDesign* design)
   auto block = design->getTopBlock();
   for (auto& net : block->getNets()) {
     // always first generate gcnet in case owner does not have any object
-    auto it = owner2nets_.find(net.get());
-    if (it == owner2nets_.end()) {
-      addNet(net.get());
-    }
+    bool netExists = (owner2nets_.find(net.get()) != owner2nets_.end());
     gcNet* gNet = nullptr;
     // auto net = uDRNet->getFrNet();
     for (auto& obj : net->getShapes()) {
       if (!drcBox_.intersects(obj->getBBox()))
         continue;
+      if (!netExists) {
+        addNet(net.get());
+        netExists = true;
+      }
       gNet = initRouteObj(obj.get());
       cnt++;
     }
     for (auto& obj : net->getVias()) {
       if (!drcBox_.intersects(obj->getBBox()))
         continue;
+      if (!netExists) {
+        addNet(net.get());
+        netExists = true;
+      }
       gNet = initRouteObj(obj.get());
       cnt++;
     }
     for (auto& pwire : net->getPatchWires()) {
       if (!drcBox_.intersects(pwire->getBBox()))
         continue;
+      if (!netExists) {
+        addNet(net.get());
+        netExists = true;
+      }
       gNet = initRouteObj(pwire.get());
       cnt++;
       Rect box = pwire->getBBox();
@@ -495,12 +500,12 @@ void FlexGCWorker::Impl::initNet_pins_polygonEdges_getFixedPolygonEdges(
     for (auto& poly : polys) {
       // skip the first pt
       auto outerIt = poly.begin();
-      bp.set((*outerIt).x(), (*outerIt).y());
-      firstPt.set((*outerIt).x(), (*outerIt).y());
+      bp = {(*outerIt).x(), (*outerIt).y()};
+      firstPt = {(*outerIt).x(), (*outerIt).y()};
       outerIt++;
       // loop from second to last pt (n-1) edges
       for (; outerIt != poly.end(); outerIt++) {
-        ep.set((*outerIt).x(), (*outerIt).y());
+        ep = {(*outerIt).x(), (*outerIt).y()};
         fixedPolygonEdges[i].insert(make_pair(bp, ep));
         bp = ep;
       }
@@ -511,12 +516,12 @@ void FlexGCWorker::Impl::initNet_pins_polygonEdges_getFixedPolygonEdges(
         auto& hole_poly = *holeIt;
         // skip the first pt
         auto innerIt = hole_poly.begin();
-        bp.set((*innerIt).x(), (*innerIt).y());
-        firstPt.set((*innerIt).x(), (*innerIt).y());
+        bp = {(*innerIt).x(), (*innerIt).y()};
+        firstPt = {(*innerIt).x(), (*innerIt).y()};
         innerIt++;
         // loop from second to last pt (n-1) edges
         for (; innerIt != hole_poly.end(); innerIt++) {
-          ep.set((*innerIt).x(), (*innerIt).y());
+          ep = {(*innerIt).x(), (*innerIt).y()};
           fixedPolygonEdges[i].insert(make_pair(bp, ep));
           bp = ep;
         }
@@ -556,14 +561,14 @@ void FlexGCWorker::Impl::initNet_pins_polygonEdges_helper_outer(
   vector<unique_ptr<gcSegment>> tmpEdges;
   // skip the first pt
   auto outerIt = poly->begin();
-  bp.set((*outerIt).x(), (*outerIt).y());
+  bp = {(*outerIt).x(), (*outerIt).y()};
   bp1 = *outerIt;
-  firstPt.set((*outerIt).x(), (*outerIt).y());
+  firstPt = {(*outerIt).x(), (*outerIt).y()};
   firstPt1 = *outerIt;
   outerIt++;
   // loop from second to last pt (n-1) edges
   for (; outerIt != poly->end(); outerIt++) {
-    ep.set((*outerIt).x(), (*outerIt).y());
+    ep = {(*outerIt).x(), (*outerIt).y()};
     ep1 = *outerIt;
     auto edge = make_unique<gcSegment>();
     edge->setLayerNum(i);
@@ -630,14 +635,14 @@ void FlexGCWorker::Impl::initNet_pins_polygonEdges_helper_inner(
   vector<unique_ptr<gcSegment>> tmpEdges;
   // skip the first pt
   auto innerIt = hole_poly.begin();
-  bp.set((*innerIt).x(), (*innerIt).y());
+  bp = {(*innerIt).x(), (*innerIt).y()};
   bp1 = *innerIt;
-  firstPt.set((*innerIt).x(), (*innerIt).y());
+  firstPt = {(*innerIt).x(), (*innerIt).y()};
   firstPt1 = *innerIt;
   innerIt++;
   // loop from second to last pt (n-1) edges
   for (; innerIt != hole_poly.end(); innerIt++) {
-    ep.set((*innerIt).x(), (*innerIt).y());
+    ep = {(*innerIt).x(), (*innerIt).y()};
     ep1 = *innerIt;
     auto edge = make_unique<gcSegment>();
     edge->setLayerNum(i);

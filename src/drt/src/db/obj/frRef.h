@@ -26,11 +26,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_REF_H_
-#define _FR_REF_H_
+#pragma once
 
-#include "odb/dbTypes.h"
 #include "db/obj/frFig.h"
+#include "odb/dbTypes.h"
 
 namespace fr {
 class frRef : public frPinFig
@@ -58,5 +57,3 @@ class frRef : public frPinFig
   friend class boost::serialization::access;
 };
 }  // namespace fr
-
-#endif

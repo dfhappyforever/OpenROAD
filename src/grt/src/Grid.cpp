@@ -108,12 +108,12 @@ void Grid::getBlockedTiles(const odb::Rect& obstruction,
                                    // the center of the tile where it is inside
 
   // Get x and y indices of first blocked tile
-  first_tile.set((lower.x() - (getTileSize() / 2)) / getTileSize(),
-                 (lower.y() - (getTileSize() / 2)) / getTileSize());
+  first_tile = {(lower.x() - (getTileSize() / 2)) / getTileSize(),
+                (lower.y() - (getTileSize() / 2)) / getTileSize()};
 
   // Get x and y indices of last blocked tile
-  last_tile.set((upper.x() - (getTileSize() / 2)) / getTileSize(),
-                (upper.y() - (getTileSize() / 2)) / getTileSize());
+  last_tile = {(upper.x() - (getTileSize() / 2)) / getTileSize(),
+               (upper.y() - (getTileSize() / 2)) / getTileSize()};
 
   odb::Point ll_first_tile = odb::Point(lower.x() - (getTileSize() / 2),
                                         lower.y() - (getTileSize() / 2));
@@ -136,11 +136,12 @@ void Grid::getBlockedTiles(const odb::Rect& obstruction,
   last_tile_bds = odb::Rect(ll_last_tile, ur_last_tile);
 }
 
-interval<int>::type Grid::computeTileReduceInterval(const odb::Rect& obs,
-                            const odb::Rect& tile,
-                            int track_space,
-                            bool first,
-                            odb::dbTechLayerDir direction)
+interval<int>::type Grid::computeTileReduceInterval(
+    const odb::Rect& obs,
+    const odb::Rect& tile,
+    int track_space,
+    bool first,
+    odb::dbTechLayerDir direction)
 {
   int start_point, end_point;
   if (direction == odb::dbTechLayerDir::VERTICAL) {
@@ -165,7 +166,7 @@ interval<int>::type Grid::computeTileReduceInterval(const odb::Rect& obs,
       start_point = tile.yMin();
       end_point = obs.yMax();
     }
-  }  
+  }
   interval<int>::type reduce_interval(start_point, end_point);
   return reduce_interval;
 }

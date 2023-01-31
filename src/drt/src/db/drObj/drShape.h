@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _DR_SHAPE_H_
-#define _DR_SHAPE_H_
+#pragma once
 
 #include "db/drObj/drFig.h"
 #include "db/infra/frSegStyle.h"
@@ -112,30 +111,30 @@ class drPathSeg : public drShape
   }
   drPathSeg(const frPathSeg& in);
   // getters
-  std::pair<Point, Point> getPoints() const
-  {
-    return {begin_, end_};
-  }
+  std::pair<Point, Point> getPoints() const { return {begin_, end_}; }
 
-  frCoord length() const {
-      //assuming it is always orthogonal
-      return end_.x() - begin_.x() + end_.y() - begin_.y();
+  frCoord length() const
+  {
+    // assuming it is always orthogonal
+    return end_.x() - begin_.x() + end_.y() - begin_.y();
   }
   const Point& getBeginPoint() const { return begin_; }
 
   const Point& getEndPoint() const { return end_; }
-  
-  bool isVertical() const { return begin_.x() == end_.x(); } 
-  
-  frCoord low() const {
-      if (isVertical())
-          return begin_.y();
-      return begin_.x();
+
+  bool isVertical() const { return begin_.x() == end_.x(); }
+
+  frCoord low() const
+  {
+    if (isVertical())
+      return begin_.y();
+    return begin_.x();
   }
-  frCoord high() const {
-      if (isVertical())
-          return end_.y();
-      return end_.x();
+  frCoord high() const
+  {
+    if (isVertical())
+      return end_.y();
+    return end_.x();
   }
   frSegStyle getStyle() const { return style_; }
   // setters
@@ -384,5 +383,3 @@ class drPatchWire : public drShape
   friend class boost::serialization::access;
 };
 }  // namespace fr
-
-#endif

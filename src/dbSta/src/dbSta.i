@@ -4,6 +4,7 @@
 #include "db_sta/dbSta.hh"
 #include "db_sta/dbNetwork.hh"
 #include "ord/OpenRoad.hh"
+#include "sta/VerilogWriter.hh"
 
 namespace ord {
 // Defined in OpenRoad.i
@@ -22,10 +23,7 @@ using sta::Instance;
 %include "sdf/Sdf.i"
 %include "dcalc/DelayCalc.i"
 %include "parasitics/Parasitics.i"
-
-namespace std {
-  %template(dbNetVector) vector<dbNet*>;
-}
+%include "power/Power.i"
 
 %inline %{
 
@@ -58,8 +56,19 @@ find_all_clk_nets()
 {
   ord::OpenRoad *openroad = ord::getOpenRoad();
   sta::dbSta *sta = openroad->getSta();
-  auto clks = sta->findClkNets();
-  return std::vector<odb::dbNet*>(clks.begin(), clks.end());
+  std::set<dbNet*> clk_nets = sta->findClkNets();
+  std::vector<dbNet*> clk_nets1(clk_nets.begin(), clk_nets.end());
+  return clk_nets1;
+}
+
+std::vector<odb::dbNet*>
+find_clk_nets(const Clock *clk)
+{
+  ord::OpenRoad *openroad = ord::getOpenRoad();
+  sta::dbSta *sta = openroad->getSta();
+  std::set<dbNet*> clk_nets = sta->findClkNets(clk);
+  std::vector<dbNet*> clk_nets1(clk_nets.begin(), clk_nets.end());
+  return clk_nets1;
 }
 
 odb::dbInst *
@@ -132,6 +141,22 @@ db_network_defined()
   odb::dbChip *chip = db->getChip();
   odb::dbBlock *block = chip->getBlock();
   db_network->readDefAfter(block);
+}
+
+// Copied from sta/verilog/Verilog.i because we don't want sta::read_verilog
+// that is in the same file.
+void
+write_verilog_cmd(const char *filename,
+		  bool sort,
+		  bool include_pwr_gnd,
+		  CellSeq *remove_cells)
+{
+  // This does NOT want the SDC (cmd) network because it wants
+  // to see the sta internal names.
+  Sta *sta = Sta::sta();
+  Network *network = sta->network();
+  sta::writeVerilog(filename, sort, include_pwr_gnd, remove_cells, network);
+  delete remove_cells;
 }
 
 %} // inline

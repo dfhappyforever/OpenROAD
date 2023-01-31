@@ -5,13 +5,10 @@
 [INFO ODB-0222] Reading LEF file: sky130hs/sky130hs_std_cell.lef
 [INFO ODB-0225]     Created 390 library cells
 [INFO ODB-0226] Finished LEF file:  sky130hs/sky130hs_std_cell.lef
-[INFO ODB-0127] Reading DEF file: clock_route.def
 [INFO ODB-0128] Design: gcd
-[WARNING ODB-0099] error: netlist component (_462_) is not defined
 [INFO ODB-0130]     Created 1 pins.
 [INFO ODB-0131]     Created 170 components and 1258 component-terminals.
 [INFO ODB-0133]     Created 15 nets and 72 connections.
-[INFO ODB-0134] Finished DEF file: clock_route.def
 [INFO GRT-0020] Min routing layer: met1
 [INFO GRT-0021] Max routing layer: met5
 [INFO GRT-0022] Global adjustment: 50%
@@ -34,30 +31,30 @@
 Layer     Direction    Resources     Resources    Reduction (%)
 ---------------------------------------------------------------
 li1        Vertical            0             0          0.00%
-met1       Horizontal      27436          5439          80.18%
-met2       Vertical        21660          6475          70.11%
-met3       Horizontal      12996          6142          52.74%
+met1       Horizontal      27436          5425          80.23%
+met2       Vertical        21660          6512          69.94%
+met3       Horizontal      12996          6140          52.75%
 met4       Vertical         8664          4625          46.62%
-met5       Horizontal       2888          1443          50.03%
+met5       Horizontal       2888          1517          47.47%
 ---------------------------------------------------------------
 
-[INFO GRT-0197] Via related to pin nodes: 126
-[INFO GRT-0198] Via related Steiner nodes: 11
+[INFO GRT-0197] Via related to pin nodes: 128
+[INFO GRT-0198] Via related Steiner nodes: 12
 [INFO GRT-0199] Via filling finished.
-[INFO GRT-0111] Final number of vias: 148
-[INFO GRT-0112] Final usage 3D: 606
+[INFO GRT-0111] Final number of vias: 150
+[INFO GRT-0112] Final usage 3D: 607
 
 [INFO GRT-0096] Final congestion report:
 Layer         Resource        Demand        Usage (%)    Max H / Max V / Total Overflow
 ---------------------------------------------------------------------------------------
 li1                  0             0            0.00%             0 /  0 /  0
-met1              5439            63            1.16%             0 /  0 /  0
-met2              6475            62            0.96%             0 /  0 /  0
-met3              6142            25            0.41%             0 /  0 /  0
+met1              5425            66            1.22%             0 /  0 /  0
+met2              6512            58            0.89%             0 /  0 /  0
+met3              6140            21            0.34%             0 /  0 /  0
 met4              4625            12            0.26%             0 /  0 /  0
-met5              1443             0            0.00%             0 /  0 /  0
+met5              1517             0            0.00%             0 /  0 /  0
 ---------------------------------------------------------------------------------------
-Total            24124           162            0.67%             0 /  0 /  0
+Total            24219           157            0.65%             0 /  0 /  0
 
 [INFO GRT-0018] Total wirelength: 1742 um
 [INFO GRT-0014] Routed nets: 15

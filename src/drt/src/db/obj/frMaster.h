@@ -25,8 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_MASTER_H_
-#define _FR_MASTER_H_
+#pragma once
 
 #include <algorithm>
 
@@ -44,9 +43,7 @@ class frMaster : public frBlockObject
  public:
   // constructors
   frMaster(const frString& name)
-      : frBlockObject(),
-        name_(name),
-        masterType_(dbMasterType::NONE){};
+      : frBlockObject(), name_(name), masterType_(dbMasterType::NONE){};
   // getters
   Rect getBBox() const
   {
@@ -151,5 +148,3 @@ class frMaster : public frBlockObject
   friend class io::Parser;
 };
 }  // namespace fr
-
-#endif

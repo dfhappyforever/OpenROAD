@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_MARKER_H_
-#define _FR_MARKER_H_
+#pragma once
 
 #include <set>
 #include <tuple>
@@ -100,15 +99,13 @@ class frMarker : public frFig
 
   void setSrcs(const std::set<frBlockObject*>& srcs) { srcs_ = srcs; }
 
-  std::vector<
-      std::pair<frBlockObject*, std::tuple<frLayerNum, Rect, bool>>>&
+  std::vector<std::pair<frBlockObject*, std::tuple<frLayerNum, Rect, bool>>>&
   getAggressors()
   {
     return aggressors_;
   }
 
-  std::vector<
-      std::pair<frBlockObject*, std::tuple<frLayerNum, Rect, bool>>>&
+  std::vector<std::pair<frBlockObject*, std::tuple<frLayerNum, Rect, bool>>>&
   getVictims()
   {
     return victims_;
@@ -131,6 +128,7 @@ class frMarker : public frFig
   frListIter<std::unique_ptr<frMarker>> getIter() const { return iter_; }
   void setIndexInOwner(const int& idx) { index_in_owner_ = idx; }
   int getIndexInOwner() const { return index_in_owner_; }
+
  private:
   frConstraint* constraint_;
   Rect bbox_;
@@ -151,5 +149,3 @@ class frMarker : public frFig
   friend class boost::serialization::access;
 };
 }  // namespace fr
-
-#endif

@@ -197,6 +197,11 @@ void dbObject::getDbName(char name[max_name_length]) const
         id = impl->getOID();
         break;
 
+      case dbGlobalConnectObj:
+        *cptr++ = 'j';
+        id = impl->getOID();
+        break;
+
       // Lib Objects
       case dbLibObj:
         *cptr++ = 'L';
@@ -347,8 +352,17 @@ void dbObject::getDbName(char name[max_name_length]) const
       case dbTechLayerEolExtensionRuleObj:
       case dbTechLayerArraySpacingRuleObj:
       case dbTechLayerWidthTableRuleObj:
+      case dbTechLayerAreaRuleObj:
       case dbTechLayerMinCutRuleObj:
         *cptr++ = 'J';
+        id = impl->getOID();
+        break;
+
+      case dbLogicPortObj:
+      case dbPowerDomainObj:
+      case dbPowerSwitchObj:
+      case dbIsolationObj:
+        *cptr++ = 'w';
         id = impl->getOID();
         break;
 
@@ -658,8 +672,10 @@ dbObject* dbObject::resolveDbName(dbDatabase* db_, const char* name)
         oid = getOid(name);
         obj = dbMetalWidthViaMap::getMetalWidthViaMap((dbTech*) obj, oid);
         break;
+      case 'j':
       case 'h':
       case 'J':
+      case 'w':
         // SKIP
         break;
 
@@ -724,11 +740,17 @@ static const char* name_tbl[] = {"dbDatabase",
                                  "dbTechLayerMinCutRule",
                                  "dbGuide",
                                  "dbMetalWidthViaMap",
+                                 "dbTechLayerAreaRule",
                                  "dbModule",
                                  "dbModInst",
                                  "dbGroup",
                                  "dbGCellGrid",
                                  "dbAccessPoint",
+                                 "dbGlobalConnect",
+                                 "dbPowerDomain",
+                                 "dbLogicPort",
+                                 "dbPowerSwitch",
+                                 "dbIsolation",
                                  // Generator Code End ObjectNames
 
                                  // Lib Objects

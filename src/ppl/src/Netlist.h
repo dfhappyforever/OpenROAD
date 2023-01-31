@@ -42,6 +42,7 @@
 #include <vector>
 
 #include "odb/db.h"
+#include "ppl/IOPlacer.h"
 
 namespace ppl {
 
@@ -59,15 +60,6 @@ enum class Orientation
   south,
   east,
   west
-};
-
-enum class Direction
-{
-  input,
-  output,
-  inout,
-  feedthru,
-  invalid
 };
 
 class InstancePin
@@ -106,7 +98,8 @@ class IOPin
         layer_(-1),
         is_placed_(false),
         in_group_(false),
-        assigned_to_section_(false)
+        assigned_to_section_(false),
+        is_mirrored_(false)
   {
   }
 
@@ -133,6 +126,7 @@ class IOPin
   Direction getDirection() const { return direction_; }
   odb::Point getLowerBound() const { return lower_bound_; };
   odb::Point getUpperBound() const { return upper_bound_; };
+  int getArea() const;
   std::string getNetName() const { return bterm_->getNet()->getName(); }
   odb::dbPlacementStatus getPlacementStatus() const
   {
@@ -146,6 +140,8 @@ class IOPin
   void setInGroup() { in_group_ = true; }
   void assignToSection() { assigned_to_section_ = true; }
   bool isAssignedToSection() { return assigned_to_section_; }
+  void setMirrored() { is_mirrored_ = true; }
+  bool isMirrored() const { return is_mirrored_; }
 
  private:
   odb::dbBTerm* bterm_;
@@ -159,6 +155,7 @@ class IOPin
   bool is_placed_;
   bool in_group_;
   bool assigned_to_section_;
+  bool is_mirrored_;
 };
 
 class Netlist

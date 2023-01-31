@@ -28,78 +28,6 @@
 #OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-sta::define_cmd_args "global_connect" {}
-
-proc global_connect {args} {
-  pdn::global_connect [ord::get_db_block]
-}
-
-sta::define_cmd_args "add_global_connection" {-net <net_name> \
-                                              -inst_pattern <inst_name_pattern> \
-                                              -pin_pattern <pin_name_pattern> \
-                                              [(-power|-ground)] \
-                                              [-defer_connection]
-}
-
-proc add_global_connection {args} {
-  sta::parse_key_args "add_global_connection" args \
-    keys {-net -inst_pattern -pin_pattern} \
-    flags {-power -ground -defer_connection}
-
-  sta::check_argc_eq0 "add_global_connection" $args
-
-  pdn::check_design_state "add_global_connection"
-
-  if {[info exists flags(-power)] && [info exists flags(-ground)]} {
-    utl::error PDN 92 "The flags -power and -ground of the add_global_connection command are mutually exclusive."
-  }
-
-  if {![info exists keys(-net)]} {
-    utl::error PDN 93 "The -net option of the add_global_connection command is required."
-  }
-
-  if {![info exists keys(-inst_pattern)]} {
-    set keys(-inst_pattern) {.*}
-  } else {
-    if {[catch {regexp $keys(-inst_pattern) ""}]} {
-      utl::error PDN 142 "The -inst_pattern argument ($keys(-inst_pattern)) is not a valid regular expression."
-    }
-  }
-
-  if {![info exists keys(-pin_pattern)]} {
-    utl::error PDN 94 "The -pin_pattern option of the add_global_connection command is required."
-  } else {
-    if {[catch {regexp $keys(-pin_pattern) ""}]} {
-      utl::error PDN 157 "The -pin_pattern argument ($keys(-pin_pattern)) is not a valid regular expression."
-    }
-  }
-
-  set net [[ord::get_db_block] findNet $keys(-net)]
-  if {$net == "NULL"} {
-    set net [odb::dbNet_create [ord::get_db_block] $keys(-net)]
-    $net setSpecial
-    if {![info exists flags(-power)] && ![info exists flags(-ground)]} {
-      utl::warn PDN 167 "Net created for $keys(-net), if intended as power or ground net add the -power/-ground switch as appropriate."
-    }
-  }
-
-  if {[info exists flags(-power)]} {
-    $net setSpecial
-    $net setSigType POWER
-  } elseif {[info exists flags(-ground)]} {
-    $net setSpecial
-    $net setSigType GROUND
-  }
-  
-  set do_connect 1
-  pdn::depricated flags -defer_connection
-  if {[info exists flags(-defer_connection)]} {
-    set do_connect 0
-  }
-
-  pdn::add_global_connect $keys(-inst_pattern) $keys(-pin_pattern) $net $do_connect
-}
-
 sta::define_cmd_args "pdngen" {[-skip_trim] \
                                [-dont_add_pins] \
                                [-reset] \
@@ -112,52 +40,44 @@ proc pdngen { args } {
   sta::parse_key_args "pdngen" args \
     keys {-failed_via_report} flags {-skip_trim -dont_add_pins -reset -ripup -report_only -verbose}
 
-  sta::check_argc_eq0or1  "pdngen" $args
+  sta::check_argc_eq0  "pdngen" $args
 
   pdn::depricated flags -verbose
 
-  if {[llength $args] == 1} {
-    utl::warn PDN 1000 "Using legacy PDNGEN.\nConsider using \"convert_pdn_config $args\" to convert the legacy configuration."
-    set config_file [file nativename [lindex $args 0]]
-    pdngen::apply $config_file
-  } else {
-    sta::check_argc_eq0  "pdngen" $args
-
-    if {[info exists flags(-reset)]} {
-      if {[array size flags] != 1} {
-        utl::error PDN 1037 "-reset flag is mutually exclusive to all other flags"
-      }
-      pdn::reset
-      return
+  if {[info exists flags(-reset)]} {
+    if {[array size flags] != 1} {
+      utl::error PDN 1037 "-reset flag is mutually exclusive to all other flags"
     }
-    if {[info exists flags(-ripup)]} {
-      if {[array size flags] != 1} {
-        utl::error PDN 1038 "-ripup flag is mutually exclusive to all other flags"
-      }
-      pdn::rip_up
-      return
-    }
-    if {[info exists flags(-report_only)]} {
-      if {[array size flags] != 1} {
-        utl::error PDN 1039 "-report_only flag is mutually exclusive to all other flags"
-      }
-      pdn::report
-      return
-    }
-
-    set trim [expr [info exists flags(-skip_trim)] == 0]
-    set add_pins [expr [info exists flags(-dont_add_pins)] == 0]
-
-    set failed_via_report ""
-    if {[info exists keys(-failed_via_report)]} {
-      set failed_via_report $keys(-failed_via_report)
-    }
-
-    pdn::check_setup
-    pdn::build_grids $trim
-    pdn::write_to_db $add_pins $failed_via_report
-    pdn::reset_shapes
+    pdn::reset
+    return
   }
+  if {[info exists flags(-ripup)]} {
+    if {[array size flags] != 1} {
+      utl::error PDN 1038 "-ripup flag is mutually exclusive to all other flags"
+    }
+    pdn::rip_up
+    return
+  }
+  if {[info exists flags(-report_only)]} {
+    if {[array size flags] != 1} {
+      utl::error PDN 1039 "-report_only flag is mutually exclusive to all other flags"
+    }
+    pdn::report
+    return
+  }
+
+  set trim [expr [info exists flags(-skip_trim)] == 0]
+  set add_pins [expr [info exists flags(-dont_add_pins)] == 0]
+
+  set failed_via_report ""
+  if {[info exists keys(-failed_via_report)]} {
+    set failed_via_report $keys(-failed_via_report)
+  }
+
+  pdn::check_setup
+  pdn::build_grids $trim
+  pdn::write_to_db $add_pins $failed_via_report
+  pdn::reset_shapes
 }
 
 sta::define_cmd_args "set_voltage_domain" {-name domain_name \

@@ -32,12 +32,15 @@
 ###############################################################################
 
 sta::define_cmd_args "global_placement" {\
-  [-skip_initial_place]\
-  [-skip_nesterov_place]\
+    [-skip_initial_place]\
+    [-skip_nesterov_place]\
     [-timing_driven]\
     [-routability_driven]\
+    [-disable_timing_driven]\
+    [-disable_routability_driven]\
     [-incremental]\
     [-force_cpu]\
+    [-skip_io]\
     [-bin_grid_count grid_count]\
     [-density target_density]\
     [-init_density_penalty init_density_penalty]\
@@ -56,6 +59,9 @@ sta::define_cmd_args "global_placement" {\
     [-routability_inflation_ratio_coef routability_inflation_ratio_coef]\
     [-routability_max_inflation_ratio routability_max_inflation_ratio]\
     [-routability_rc_coefficients routability_rc_coefficients]\
+    [-timing_driven_net_reweight_overflow timing_driven_net_reweight_overflow]\
+    [-timing_driven_net_weight_max timing_driven_net_weight_max]\
+    [-timing_driven_nets_percentage timing_driven_nets_percentage]\
     [-pad_left pad_left]\
     [-pad_right pad_right]\
 }
@@ -74,6 +80,8 @@ proc global_placement { args } {
       -routability_max_inflation_ratio \
       -routability_rc_coefficients \
       -timing_driven_net_reweight_overflow \
+      -timing_driven_net_weight_max \
+      -timing_driven_nets_percentage \
       -pad_left -pad_right} \
     flags {-skip_initial_place \
       -skip_nesterov_place \
@@ -123,6 +131,14 @@ proc global_placement { args } {
 
     foreach overflow $overflow_list {
       gpl::add_timing_net_reweight_overflow_cmd $overflow
+    }
+
+    if { [info exists keys(-timing_driven_net_weight_max)] } {
+      gpl::set_timing_driven_net_weight_max_cmd $keys(-timing_driven_net_weight_max)
+    }
+
+    if { [info exists keys(-timing_driven_nets_percentage)] } {
+      rsz::set_worst_slack_nets_percent $keys(-timing_driven_nets_percentage)
     }
   }
 
@@ -309,7 +325,7 @@ proc global_placement { args } {
 namespace eval gpl {
 proc global_placement_debug { args } {
   sta::parse_key_args "global_placement_debug" args \
-      keys {-pause -update} \
+      keys {-pause -update -inst} \
       flags {-draw_bins -initial}
 
   set pause 10
@@ -324,10 +340,15 @@ proc global_placement_debug { args } {
     sta::check_positive_integer "-update" $update
   }
 
+  set inst ""
+  if { [info exists keys(-inst)] } {
+    set inst $keys(-inst)
+  }
+
   set draw_bins [info exists flags(-draw_bins)]
   set initial [info exists flags(-initial)]
 
-  gpl::set_debug_cmd $pause $update $draw_bins $initial
+  gpl::set_debug_cmd $pause $update $draw_bins $initial $inst
 }
 
 proc get_global_placement_uniform_density { args } {

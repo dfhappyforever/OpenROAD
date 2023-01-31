@@ -648,7 +648,7 @@ void FlexDRConnectivityChecker::finish(
       validPoints.insert(make_pair(bp, lNum));
       validPoints.insert(make_pair(ep, lNum));
     } else {
-      cout << "Error: finish unsupporterd type" << endl;
+      cout << "Error: finish unsupported type" << endl;
       exit(1);
     }
   }
@@ -661,7 +661,7 @@ void FlexDRConnectivityChecker::finish(
       lNum = obj->getViaDef()->getLayer2Num();
       validPoints.insert(make_pair(origin, lNum));
     } else {
-      cout << "Error: finish unsupporterd type" << endl;
+      cout << "Error: finish unsupported type" << endl;
       exit(1);
     }
   }
@@ -952,11 +952,11 @@ void FlexDRConnectivityChecker::splitPathSegs_commit(
       unique_ptr<frPathSeg> newPs = make_unique<frPathSeg>();
       Point begin, end;
       if (highestPs->isVertical()) {
-        begin.set(highestPs->getBeginPoint().x(), lo);
-        end.set(highestPs->getBeginPoint().x(), hi);
+        begin = {highestPs->getBeginPoint().x(), lo};
+        end = {highestPs->getBeginPoint().x(), hi};
       } else {
-        begin.set(lo, highestPs->getBeginPoint().y());
-        end.set(hi, highestPs->getBeginPoint().y());
+        begin = {lo, highestPs->getBeginPoint().y()};
+        end = {hi, highestPs->getBeginPoint().y()};
       }
       newPs->setPoints(begin, end);
       newPs->setBeginStyle(frEndStyle(frcTruncateEndStyle));
@@ -1049,11 +1049,11 @@ void FlexDRConnectivityChecker::merge_commit(frNet* net,
 
     Point bp, ep;
     if (isHorz) {
-      bp.set(newSegSpan.lo, trackCoord);
-      ep.set(newSegSpan.hi, trackCoord);
+      bp = {newSegSpan.lo, trackCoord};
+      ep = {newSegSpan.hi, trackCoord};
     } else {
-      bp.set(trackCoord, newSegSpan.lo);
-      ep.set(trackCoord, newSegSpan.hi);
+      bp = {trackCoord, newSegSpan.lo};
+      ep = {trackCoord, newSegSpan.hi};
     }
     victimPathSeg->setPoints(bp, ep);
     cnt++;

@@ -8,6 +8,9 @@ proc make_result_file { filename } {
   if { ![file exists $result_dir] } {
     file mkdir $result_dir
   }
+  set root [file rootname $filename]
+  set ext [file extension $filename]
+  set filename "$root-tcl$ext"
   return [file join $result_dir $filename]
 }
 
@@ -50,3 +53,59 @@ proc diff_files { file1 file2 } {
     return 0
   }
 }
+
+proc run_unit_test_and_exit { relative_path } {
+  set test_dir [pwd]
+  set openroad_dir [file dirname [file dirname [file dirname $test_dir]]]
+  set test_path [file join $openroad_dir {*}$relative_path]
+
+  set test_status [catch { exec sh -c "BASE_DIR=$test_dir $test_path" } output option]
+
+  puts $test_status
+  puts $output
+  if { $test_status != 0 } {
+    set test_err_info [lassign [dict get $option -errorcode] err_type]
+    switch -exact -- $err_type {
+      NONE {
+        #passed
+      }
+      CHILDSTATUS {
+        # non-zero exit status
+        set exit_status [lindex $test_err_info 1]
+        puts "ERROR: test returned exit code $exit_status"
+        exit 1
+
+      }
+      default {
+        puts "ERROR: $option"
+        exit 1
+      }
+    }
+  }
+  puts "pass"
+  exit 0
+}
+
+# Output voltage file is specified as ...
+suppress_message PSM 2
+# Output current file specified ...
+suppress_message PSM 3
+# Output spice file is specified as
+suppress_message PSM 5
+# SPICE file is written at
+suppress_message PSM 6
+# Reading DEF file
+suppress_message ODB 127
+# Finished DEF file
+suppress_message ODB 134
+
+# suppress ppl info messages. The ones defined in tcl can never
+# match between tcl and Python
+suppress_message PPL 41
+suppress_message PPL 48
+suppress_message PPL 49
+suppress_message PPL 60
+
+# suppress tap info messages
+suppress_message TAP 100
+suppress_message TAP 101

@@ -63,7 +63,10 @@
 #include "lefrCallBacks.hpp"
 #include "lefrSettings.hpp"
 
-#include "lef_parser.hpp"
+#ifndef WIN32
+  // Only include this on non-Windows platforms
+  #include "lef_parser.hpp"
+#endif
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
 
@@ -596,11 +599,9 @@ start_units: K_UNITS
           CHKERR();
         }
       }
-      if (lefData->versionNum < 5.6) {
-        if (lefData->hasSite) {//SITE is defined before UNIT and is illegal in pre 5.6
-          lefError(1713, "SITE statement was defined before UNITS.\nRefer the LEF Language Reference manual for the order of LEF statements.");
-          CHKERR();
-        }
+      if (lefData->hasSite) {
+        lefError(1713, "SITE statement was defined before UNITS.\nRefer the LEF Language Reference manual for the order of LEF statements.");
+        CHKERR();
       }
     }
 
@@ -2241,7 +2242,7 @@ layer_arraySpacing_arraycuts:       // 5.7
 layer_arraySpacing_arraycut:
   K_ARRAYCUTS int_number K_SPACING int_number
     {
-      if (lefCallbacks->LayerCbk)
+      if (lefCallbacks->LayerCbk) {
          lefData->lefrLayer.addArraySpacingArray((int)$2, $4);
          if (lefData->arrayCutsVal > (int)$2) {
             // Mulitiple ARRAYCUTS value needs to me in ascending order 
@@ -2252,6 +2253,7 @@ layer_arraySpacing_arraycut:
             }
          }
          lefData->arrayCutsVal = (int)$2;
+      }
     }
 
 sp_options:

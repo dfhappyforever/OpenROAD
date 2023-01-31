@@ -34,8 +34,8 @@
 
 #include <array>
 #include <boost/geometry.hpp>
-#include <boost/geometry/index/rtree.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
+#include <boost/geometry/index/rtree.hpp>
 #include <map>
 #include <memory>
 
@@ -88,8 +88,10 @@ using ViaReport = std::map<std::string, int>;
 class Grid;
 class TechLayer;
 
-enum class failedViaReason {
+enum class failedViaReason
+{
   OBSTRUCTED,
+  OVERLAPPING,
   BUILD,
   RIPUP,
   RECHECK,
@@ -156,7 +158,8 @@ class DbVia
                                  odb::dbWireShapeType type,
                                  int x,
                                  int y,
-                                 utl::Logger* logger) = 0;
+                                 utl::Logger* logger)
+      = 0;
 
   virtual bool requiresPatch() const { return false; }
 
@@ -165,7 +168,10 @@ class DbVia
 
   virtual ViaReport getViaReport() const = 0;
 
-  void setGenerator(const std::shared_ptr<ViaGenerator>& generator) { generator_ = generator; }
+  void setGenerator(const std::shared_ptr<ViaGenerator>& generator)
+  {
+    generator_ = generator;
+  }
   bool hasGenerator() const { return generator_ != nullptr; }
   ViaGenerator* getGenerator() const { return generator_.get(); }
 
@@ -201,7 +207,6 @@ class DbBaseVia : public DbVia
 
  private:
   int count_;
-
 };
 
 // Wrapper to handle building dbTechVia as a single via or an array
@@ -438,7 +443,8 @@ class DbGenerateDummyVia : public DbVia
 class ViaGenerator
 {
  public:
-  struct Constraint {
+  struct Constraint
+  {
     bool must_fit_x;
     bool must_fit_y;
     bool intersection_only;
@@ -478,8 +484,7 @@ class ViaGenerator
                                 bool check_enclosure = true) const;
 
   // determine the shape of the vias
-  bool build(bool bottom_is_internal_layer,
-             bool top_is_internal_layer);
+  bool build(bool bottom_is_internal_layer, bool top_is_internal_layer);
   virtual int getRows() const;
   virtual int getColumns() const;
   virtual int getTotalCuts() const;
@@ -553,7 +558,9 @@ class ViaGenerator
 
   void determineCutSpacing();
 
-  virtual void getMinimumEnclosures(std::vector<Enclosure>& bottom, std::vector<Enclosure>& top, bool rules_only) const;
+  virtual void getMinimumEnclosures(std::vector<Enclosure>& bottom,
+                                    std::vector<Enclosure>& top,
+                                    bool rules_only) const;
 
  private:
   utl::Logger* logger_;
@@ -598,7 +605,9 @@ class ViaGenerator
 
   bool checkMinEnclosure() const;
 
-  std::vector<odb::dbTechLayerCutEnclosureRule*> getCutMinimumEnclosureRules(int width, bool above) const;
+  std::vector<odb::dbTechLayerCutEnclosureRule*> getCutMinimumEnclosureRules(
+      int width,
+      bool above) const;
 
   void determineRowsAndColumns(bool use_bottom_min_enclosure,
                                bool use_top_min_enclosure,
@@ -642,7 +651,9 @@ class GenerateViaGenerator : public ViaGenerator
                                  int col_pitch) const override;
 
  protected:
-  virtual void getMinimumEnclosures(std::vector<Enclosure>& bottom, std::vector<Enclosure>& top, bool rules_only) const override;
+  virtual void getMinimumEnclosures(std::vector<Enclosure>& bottom,
+                                    std::vector<Enclosure>& top,
+                                    bool rules_only) const override;
 
  private:
   odb::dbTechViaGenerateRule* rule_;
@@ -689,10 +700,15 @@ class TechViaGenerator : public ViaGenerator
                                  int cols,
                                  int col_pitch) const override;
 
-  static std::set<odb::Rect> getViaObstructionRects(utl::Logger* logger, odb::dbTechVia* via, int x, int y);
+  static std::set<odb::Rect> getViaObstructionRects(utl::Logger* logger,
+                                                    odb::dbTechVia* via,
+                                                    int x,
+                                                    int y);
 
  protected:
-  virtual void getMinimumEnclosures(std::vector<Enclosure>& bottom, std::vector<Enclosure>& top, bool rules_only) const override;
+  virtual void getMinimumEnclosures(std::vector<Enclosure>& bottom,
+                                    std::vector<Enclosure>& top,
+                                    bool rules_only) const override;
 
  private:
   odb::dbTechVia* via_;
@@ -740,7 +756,9 @@ class Via
 
   Connect* getConnect() const { return connect_; }
 
-  void writeToDb(odb::dbSWire* wire, odb::dbBlock* block, const ShapeTreeMap& obstructions);
+  void writeToDb(odb::dbSWire* wire,
+                 odb::dbBlock* block,
+                 const ShapeTreeMap& obstructions);
 
   Grid* getGrid() const;
 
@@ -749,6 +767,7 @@ class Via
   Via* copy() const;
 
   void markFailed(failedViaReason reason);
+  bool isFailed() const { return failed_; }
 
  private:
   odb::dbNet* net_;
@@ -757,6 +776,8 @@ class Via
   ShapePtr upper_;
 
   Connect* connect_;
+
+  bool failed_;
 
   utl::Logger* getLogger() const;
 };

@@ -142,11 +142,17 @@ class dbTechLayerWidthTableRule;
 class dbTechLayerMinCutRule;
 class dbGuide;
 class dbMetalWidthViaMap;
+class dbTechLayerAreaRule;
 class dbModule;
 class dbModInst;
 class dbGroup;
 class dbGCellGrid;
 class dbAccessPoint;
+class dbGlobalConnect;
+class dbPowerDomain;
+class dbLogicPort;
+class dbPowerSwitch;
+class dbIsolation;
 // Generator Code End ClassDeclarations
 
 // Extraction Objects
@@ -892,6 +898,26 @@ class dbBlock : public dbObject
   dbSet<dbModInst> getModInsts();
 
   ///
+  /// Get the Power Domains of this block.
+  ///
+  dbSet<dbPowerDomain> getPowerDomains();
+
+  ///
+  /// Get the Logic Ports of this block.
+  ///
+  dbSet<dbLogicPort> getLogicPorts();
+
+  ///
+  /// Get the Power Switches of this block.
+  ///
+  dbSet<dbPowerSwitch> getPowerSwitches();
+
+  ///
+  /// Get the Isolations of this block.
+  ///
+  dbSet<dbIsolation> getIsolations();
+
+  ///
   /// Get the groups of this block.
   ///
   dbSet<dbGroup> getGroups();
@@ -900,6 +926,26 @@ class dbBlock : public dbObject
   /// Get the access points of this block.
   ///
   dbSet<dbAccessPoint> getAccessPoints();
+
+  ///
+  /// Get the gloabl connects of this block.
+  ///
+  dbSet<dbGlobalConnect> getGlobalConnects();
+
+  ///
+  /// Evaluate global connect rules on this block.
+  /// and helper functions for global connections
+  /// on this block.
+  ///
+  int globalConnect();
+  int globalConnect(dbGlobalConnect* gc);
+  int addGlobalConnect(dbRegion* region,
+                       const char* instPattern,
+                       const char* pinPattern,
+                       dbNet* net,
+                       bool do_connect);
+  void reportGlobalConnect();
+  void clearGlobalConnect();
 
   ///
   /// Find a specific instance of this block.
@@ -918,6 +964,30 @@ class dbBlock : public dbObject
   /// master_module_name/modinst_name Returns NULL if the object was not found.
   ///
   dbModInst* findModInst(const char* path);
+
+  ///
+  /// Find a specific PowerDomain in this block.
+  /// Returns NULL if the object was not found.
+  ///
+  dbPowerDomain* findPowerDomain(const char* name);
+
+  ///
+  /// Find a specific LogicPort in this block.
+  /// Returns NULL if the object was not found.
+  ///
+  dbLogicPort* findLogicPort(const char* name);
+
+  ///
+  /// Find a specific PowerSwitch in this block.
+  /// Returns NULL if the object was not found.
+  ///
+  dbPowerSwitch* findPowerSwitch(const char* name);
+
+  ///
+  /// Find a specific Isolation in this block.
+  /// Returns NULL if the object was not found.
+  ///
+  dbIsolation* findIsolation(const char* name);
 
   ///
   /// Find a specific group in this block.
@@ -987,8 +1057,7 @@ class dbBlock : public dbObject
   //
   // Utility to save_lef
   //
-  // void dbBlock::saveLef(char *filename);
-  void saveLef(char* filename);
+  void saveLef(char* filename, int bloat_factor, bool bloat_occupied_layers);
 
   //
   // Utility to save_def
@@ -1403,7 +1472,7 @@ class dbBlock : public dbObject
   ///
   /// get wire_updated nets
   ///
-  void getWireUpdatedNets(std::vector<dbNet*>& nets, Rect* bbox = NULL);
+  void getWireUpdatedNets(std::vector<dbNet*>& nets);
 
   ///
   /// return the regions of this design
@@ -6930,6 +6999,10 @@ class dbTechLayer : public dbObject
   // User Code Begin dbTechLayerEnums
   // User Code End dbTechLayerEnums
 
+  void setWrongWayWidth(uint wrong_way_width);
+
+  uint getWrongWayWidth() const;
+
   dbSet<dbTechLayerCutClassRule> getTechLayerCutClassRules() const;
 
   dbTechLayerCutClassRule* findTechLayerCutClassRule(const char* name) const;
@@ -6962,6 +7035,8 @@ class dbTechLayer : public dbObject
   dbSet<dbTechLayerWidthTableRule> getTechLayerWidthTableRules() const;
 
   dbSet<dbTechLayerMinCutRule> getTechLayerMinCutRules() const;
+
+  dbSet<dbTechLayerAreaRule> getTechLayerAreaRules() const;
 
   void setRectOnly(bool rect_only);
 
@@ -8866,6 +8941,65 @@ class dbMetalWidthViaMap : public dbObject
   // User Code End dbMetalWidthViaMap
 };
 
+class dbTechLayerAreaRule : public dbObject
+{
+ public:
+  // User Code Begin dbTechLayerAreaRuleEnums
+  // User Code End dbTechLayerAreaRuleEnums
+
+  void setArea(int area);
+
+  int getArea() const;
+
+  void setExceptMinWidth(int except_min_width);
+
+  int getExceptMinWidth() const;
+
+  void setExceptEdgeLength(int except_edge_length);
+
+  int getExceptEdgeLength() const;
+
+  void setExceptEdgeLengths(std::pair<int, int> except_edge_lengths);
+
+  std::pair<int, int> getExceptEdgeLengths() const;
+
+  void setExceptMinSize(std::pair<int, int> except_min_size);
+
+  std::pair<int, int> getExceptMinSize() const;
+
+  void setExceptStep(std::pair<int, int> except_step);
+
+  std::pair<int, int> getExceptStep() const;
+
+  void setMask(int mask);
+
+  int getMask() const;
+
+  void setRectWidth(int rect_width);
+
+  int getRectWidth() const;
+
+  void setExceptRectangle(bool except_rectangle);
+
+  bool isExceptRectangle() const;
+
+  void setOverlap(uint overlap);
+
+  uint getOverlap() const;
+
+  // User Code Begin dbTechLayerAreaRule
+
+  static dbTechLayerAreaRule* create(dbTechLayer* _layer);
+
+  void setTrimLayer(dbTechLayer* trim_layer);
+
+  dbTechLayer* getTrimLayer() const;
+
+  static void destroy(dbTechLayerAreaRule* rule);
+
+  // User Code End dbTechLayerAreaRule
+};
+
 class dbModule : public dbObject
 {
  public:
@@ -9222,6 +9356,160 @@ class dbAccessPoint : public dbObject
 
   static void destroy(dbAccessPoint* ap);
   // User Code End dbAccessPoint
+};
+
+class dbGlobalConnect : public dbObject
+{
+ public:
+  // User Code Begin dbGlobalConnectEnums
+  // User Code End dbGlobalConnectEnums
+  dbRegion* getRegion() const;
+
+  dbNet* getNet() const;
+
+  std::string getInstPattern() const;
+
+  std::string getPinPattern() const;
+
+  // User Code Begin dbGlobalConnect
+  std::vector<dbInst*> getInsts() const;
+
+  int connect(dbInst* inst);
+
+  static dbGlobalConnect* create(dbNet* net,
+                                 dbRegion* region,
+                                 const std::string& inst_pattern,
+                                 const std::string& pin_pattern);
+
+  static void destroy(dbGlobalConnect* global_connect);
+  // User Code End dbGlobalConnect
+};
+
+class dbPowerDomain : public dbObject
+{
+ public:
+  // User Code Begin dbPowerDomainEnums
+  // User Code End dbPowerDomainEnums
+  const char* getName() const;
+
+  dbGroup* getGroup() const;
+
+  void setTop(bool top);
+
+  bool isTop() const;
+
+  void setParent(dbPowerDomain* parent);
+
+  dbPowerDomain* getParent() const;
+
+  // User Code Begin dbPowerDomain
+  void setGroup(dbGroup* group);
+  static dbPowerDomain* create(dbBlock* block, const char* name);
+  static void destroy(dbPowerDomain* pd);
+
+  void addElement(const std::string& element);
+  std::vector<std::string> getElements();
+
+  void addPowerSwitch(dbPowerSwitch* ps);
+  void addIsolation(dbIsolation* iso);
+
+  std::vector<dbPowerSwitch*> getPowerSwitches();
+  std::vector<dbIsolation*> getIsolations();
+
+  bool setArea(float x1, float y1, float x2, float y2);
+  bool getArea(int& x1, int& y1, int& x2, int& y2);
+
+  // User Code End dbPowerDomain
+};
+
+class dbLogicPort : public dbObject
+{
+ public:
+  // User Code Begin dbLogicPortEnums
+  // User Code End dbLogicPortEnums
+  const char* getName() const;
+
+  std::string getDirection() const;
+
+  // User Code Begin dbLogicPort
+  static dbLogicPort* create(dbBlock* block,
+                             const char* name,
+                             const std::string& direction);
+  static void destroy(dbLogicPort* lp);
+  // User Code End dbLogicPort
+};
+
+class dbPowerSwitch : public dbObject
+{
+ public:
+  // User Code Begin dbPowerSwitchEnums
+  // User Code End dbPowerSwitchEnums
+  const char* getName() const;
+
+  std::string getInSupplyPort() const;
+
+  std::string getOutSupplyPort() const;
+
+  void setControlNet(dbNet* control_net);
+
+  dbNet* getControlNet() const;
+
+  void setPowerDomain(dbPowerDomain* power_domain);
+
+  dbPowerDomain* getPowerDomain() const;
+
+  // User Code Begin dbPowerSwitch
+  static dbPowerSwitch* create(dbBlock* block, const char* name);
+  static void destroy(dbPowerSwitch* ps);
+  void setInSupplyPort(const std::string& in_port);
+  void setOutSupplyPort(const std::string& out_port);
+  void addControlPort(const std::string& control_port);
+  void addOnState(const std::string& on_state);
+  std::vector<std::string> getControlPorts();
+  std::vector<std::string> getOnStates();
+  // User Code End dbPowerSwitch
+};
+
+class dbIsolation : public dbObject
+{
+ public:
+  // User Code Begin dbIsolationEnums
+  // User Code End dbIsolationEnums
+  const char* getName() const;
+
+  std::string getAppliesTo() const;
+
+  std::string getClampValue() const;
+
+  std::string getIsolationSignal() const;
+
+  std::string getIsolationSense() const;
+
+  std::string getLocation() const;
+
+  void setPowerDomain(dbPowerDomain* power_domain);
+
+  dbPowerDomain* getPowerDomain() const;
+
+  // User Code Begin dbIsolation
+  static dbIsolation* create(dbBlock* block, const char* name);
+  static void destroy(dbIsolation* iso);
+
+  void setAppliesTo(const std::string& applies_to);
+
+  void setClampValue(const std::string& clamp_value);
+
+  void setIsolationSignal(const std::string& isolation_signal);
+
+  void setIsolationSense(const std::string& isolation_sense);
+
+  void setLocation(const std::string& location);
+
+  void addIsolationCell(std::string& master);
+
+  std::vector<dbMaster*> getIsolationCells();
+
+  // User Code End dbIsolation
 };
 
 // Generator Code End ClassDefinition

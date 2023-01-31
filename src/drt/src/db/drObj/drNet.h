@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _DR_NET_H_
-#define _DR_NET_H_
+#pragma once
 
 #include <memory>
 #include <set>
@@ -69,9 +68,11 @@ class drNet : public drBlockObject
     if (hasNDR())
       maxRipupAvoids_ = NDR_NETS_RIPUP_HARDINESS;
     if (isClockNetTrunk())
-      maxRipupAvoids_ = std::max((int)maxRipupAvoids_, CLOCK_NETS_TRUNK_RIPUP_HARDINESS);
+      maxRipupAvoids_
+          = std::max((int) maxRipupAvoids_, CLOCK_NETS_TRUNK_RIPUP_HARDINESS);
     else if (isClockNetLeaf())
-      maxRipupAvoids_ = std::max((int)maxRipupAvoids_, CLOCK_NETS_LEAF_RIPUP_HARDINESS);
+      maxRipupAvoids_
+          = std::max((int) maxRipupAvoids_, CLOCK_NETS_LEAF_RIPUP_HARDINESS);
   }
   // getters
   const std::vector<std::unique_ptr<drPin>>& getPins() const { return pins_; }
@@ -137,14 +138,15 @@ class drNet : public drBlockObject
       }
     }
   }
-  void removeShape(drConnFig* shape, bool isExt = false) {
+  void removeShape(drConnFig* shape, bool isExt = false)
+  {
     vector<unique_ptr<drConnFig>>* v = isExt ? &extConnFigs_ : &routeConnFigs_;
     for (int i = 0; i < v->size(); i++) {
-        auto& s = (*v)[i];
-        if (s.get() == shape) {
-            v->erase(v->begin()+i);
-            return;
-        }
+      auto& s = (*v)[i];
+      if (s.get() == shape) {
+        v->erase(v->begin() + i);
+        return;
+      }
     }
   }
   void clear()
@@ -214,29 +216,34 @@ class drNet : public drBlockObject
   bool canAvoidRipup() const { return nRipupAvoids_ < maxRipupAvoids_; }
   unsigned short getMaxRipupAvoids() const { return maxRipupAvoids_; }
   void setMaxRipupAvoids(unsigned short n) { maxRipupAvoids_ = n; }
-  
-  frAccessPoint* getFrAccessPoint(frCoord x, frCoord y, frLayerNum lNum, frBlockObject** owner = nullptr) {
-      for (auto& term : fNetTerms_) {
-          if (term->typeId() == frBlockObjectEnum::frcInstTerm) {
-                frInstTerm* it = static_cast<frInstTerm*>(term);
-                frAccessPoint* ap = it->getAccessPoint(x, y, lNum);
-                if (ap) {
-                    if (owner)
-                        (*owner) = term;
-                    return ap;
-                }
-          } else if (term->typeId() == frBlockObjectEnum::frcBTerm) {
-                frBTerm* t = static_cast<frBTerm*>(term);
-                frAccessPoint* ap = t->getAccessPoint(x, y, lNum, 0);
-                if (ap) {
-                    if (owner)
-                        (*owner) = term;
-                    return ap;
-                }
-          }
+
+  frAccessPoint* getFrAccessPoint(frCoord x,
+                                  frCoord y,
+                                  frLayerNum lNum,
+                                  frBlockObject** owner = nullptr)
+  {
+    for (auto& term : fNetTerms_) {
+      if (term->typeId() == frBlockObjectEnum::frcInstTerm) {
+        frInstTerm* it = static_cast<frInstTerm*>(term);
+        frAccessPoint* ap = it->getAccessPoint(x, y, lNum);
+        if (ap) {
+          if (owner)
+            (*owner) = term;
+          return ap;
+        }
+      } else if (term->typeId() == frBlockObjectEnum::frcBTerm) {
+        frBTerm* t = static_cast<frBTerm*>(term);
+        frAccessPoint* ap = t->getAccessPoint(x, y, lNum, 0);
+        if (ap) {
+          if (owner)
+            (*owner) = term;
+          return ap;
+        }
       }
-      return nullptr;
+    }
+    return nullptr;
   }
+
  private:
   std::vector<std::unique_ptr<drPin>> pins_;
   std::vector<std::unique_ptr<drConnFig>> extConnFigs_;
@@ -262,12 +269,24 @@ class drNet : public drBlockObject
 
   std::vector<frRect> origGuides_;
 
-  drNet() {} // for serialization
+  drNet()
+      : fNet_(nullptr),
+        modified_(false),
+        numMarkers_(0),
+        numPinsIn_(0),
+        markerDist_(0),
+        allowRipup_(false),
+        ripup_(false),
+        numReroutes_(0),
+        nRipupAvoids_(0),
+        maxRipupAvoids_(0),
+        inQueue_(false),
+        routed_(false)
+  {
+  }  // for serialization
   template <class Archive>
   void serialize(Archive& ar, const unsigned int version);
 
   friend class boost::serialization::access;
 };
 }  // namespace fr
-
-#endif

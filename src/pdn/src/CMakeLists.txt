@@ -42,7 +42,6 @@ swig_lib(NAME      pdn
                        ${ODB_HOME}/src/swig/tcl
                        ${ODB_HOME}/include
          SCRIPTS   pdn.tcl
-                   PdnGen.tcl
 )
 
 target_sources(pdn
@@ -81,3 +80,29 @@ messages(
   TARGET pdn
   OUTPUT_DIR ..
 )
+
+if (Python3_FOUND AND BUILD_PYTHON)
+  swig_lib(NAME          pdn_py
+           NAMESPACE     pdn
+           LANGUAGE      python
+           I_FILE        PdnGen-py.i
+           SWIG_INCLUDES ${ODB_HOME}/src/swig/common
+                         ${ODB_HOME}/src/swig/python
+                         ${ODB_HOME}/include
+                         ${PROJECT_SOURCE_DIR}/../include/pdn
+           SCRIPTS       ${CMAKE_CURRENT_BINARY_DIR}/pdn_py.py
+  )
+
+  target_include_directories(pdn_py
+    PUBLIC
+      .
+  )
+  
+  target_link_libraries(pdn_py
+    PUBLIC
+      pdn
+      odb
+      gui
+    )
+
+endif()

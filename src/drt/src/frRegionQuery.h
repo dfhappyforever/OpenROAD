@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_REGIONQUERY_H_
-#define _FR_REGIONQUERY_H_
+#pragma once
 
 #include "frBaseTypes.h"
 
@@ -140,8 +139,5 @@ class frRegionQuery
   std::unique_ptr<Impl> impl_;
 
   frRegionQuery();
-
 };
 }  // namespace fr
-
-#endif

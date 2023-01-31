@@ -45,7 +45,6 @@
 #include "CtsOptions.h"
 #include "HTreeBuilder.h"
 #include "LevelBalancer.h"
-#include "PostCtsOpt.h"
 #include "TechChar.h"
 #include "TreeBuilder.h"
 #include "db_sta/dbNetwork.hh"
@@ -96,9 +95,6 @@ void TritonCTS::runTritonCts()
   } else {
     checkCharacterization();
     buildClockTrees();
-    if (options_->runPostCtsOpt()) {
-      runPostCtsOpt();
-    }
     writeDataToDb();
   }
 }
@@ -165,16 +161,6 @@ void TritonCTS::buildClockTrees()
         LevelBalancer balancer(builder, options_, logger_);
         balancer.run();
       }
-    }
-  }
-}
-
-void TritonCTS::runPostCtsOpt()
-{
-  if (options_->runPostCtsOpt()) {
-    for (TreeBuilder* builder : *builders_) {
-      PostCtsOpt opt(builder, options_, techChar_, logger_);
-      opt.run();
     }
   }
 }
@@ -447,13 +433,21 @@ void TritonCTS::populateTritonCTS()
     }
     clockNetsInfo.emplace_back(std::make_pair(clockNets, std::string("")));
   } else {
+    std::set<odb::dbNet*> allClkNets;
     staClockNets_ = openSta_->findClkNets();
     sta::Sdc* sdc = openSta_->sdc();
     for (auto clk : *sdc->clocks()) {
       std::string clkName = clk->name();
       std::set<odb::dbNet*> clkNets;
       findClockRoots(clk, clkNets);
+      for (auto net : clkNets) {
+        if (allClkNets.find(net) != allClkNets.end()) {
+          logger_->error(
+              CTS, 114, "Clock {} overlaps a previous clock.", clkName);
+        }
+      }
       clockNetsInfo.emplace_back(make_pair(clkNets, clkName));
+      allClkNets.insert(clkNets.begin(), clkNets.end());
     }
   }
 
@@ -589,28 +583,6 @@ TreeBuilder* TritonCTS::initClock(odb::dbNet* net,
   return builder;
 }
 
-void TritonCTS::parseClockNames(std::vector<std::string>& clockNetNames) const
-{
-  std::stringstream allNames(options_->getClockNets());
-
-  std::string tmpName = "";
-  while (allNames >> tmpName) {
-    clockNetNames.push_back(tmpName);
-  }
-
-  unsigned numClocks = clockNetNames.size();
-  logger_->info(CTS, 11, " Number of user-input clocks: {}.", numClocks);
-
-  if (numClocks > 0) {
-    std::string rpt = " (";
-    for (const std::string& name : clockNetNames) {
-      rpt = rpt + " \"" + name + "\"";
-    }
-    rpt = rpt + " )";
-    logger_->report("{}", rpt);
-  }
-}
-
 void TritonCTS::computeITermPosition(odb::dbITerm* term, int& x, int& y) const
 {
   odb::dbITermShapeItr itr;
@@ -718,10 +690,6 @@ void TritonCTS::writeClockNetsToDb(Clock& clockNet)
       checkUpstreamConnections(inputNet);
     }
   });
-
-  if (options_->writeOnlyClockNets()) {
-    removeNonClockNets();
-  }
 
   int minPath = std::numeric_limits<int>::max();
   int maxPath = std::numeric_limits<int>::min();
@@ -895,15 +863,6 @@ bool TritonCTS::masterExists(const std::string& master) const
 {
   return db_->findMaster(master.c_str());
 };
-
-void TritonCTS::removeNonClockNets()
-{
-  for (odb::dbNet* net : block_->getNets()) {
-    if (net->getSigType() != odb::dbSigType::CLOCK) {
-      odb::dbNet::destroy(net);
-    }
-  }
-}
 
 void TritonCTS::findClockRoots(sta::Clock* clk,
                                std::set<odb::dbNet*>& clockNets)

@@ -169,21 +169,53 @@ RepairHold::repairHold(Pin *end_pin,
   resizer_->incrementalParasiticsEnd();
 }
 
-// Find the buffer with the most delay in the fastest corner.
+// Find a good hold buffer using delay/area as the metric.
 LibertyCell *
 RepairHold::findHoldBuffer()
 {
-  LibertyCell *max_buffer = nullptr;
-  float max_delay = 0.0;
+  // Build a vector of buffers sorted by the metric
+  struct MetricBuffer {
+    float metric;
+    LibertyCell* cell;
+  };
+  std::vector<MetricBuffer> buffers;
   for (LibertyCell *buffer : resizer_->buffer_cells_) {
-    float buffer_min_delay = bufferHoldDelay(buffer);
-    if (max_buffer == nullptr
-        || buffer_min_delay > max_delay) {
-      max_buffer = buffer;
-      max_delay = buffer_min_delay;
+    const float buffer_area = buffer->area();
+    if (buffer_area != 0.0) {
+      float buffer_cost = bufferHoldDelay(buffer) / buffer_area;
+      buffers.push_back({buffer_cost, buffer});
     }
   }
-  return max_buffer;
+
+  std::sort(buffers.begin(),
+            buffers.end(),
+            [](const MetricBuffer& lhs, const MetricBuffer& rhs) {
+              return lhs.metric < rhs.metric;
+            });
+
+  if (buffers.empty()) {
+    return nullptr;
+  }
+
+  // Select the highest metric
+  MetricBuffer& best_buffer = *buffers.rbegin();
+  const MetricBuffer& highest_metric = best_buffer;
+
+  // See if there is a smaller choice with nearly as good a metric.
+  const float margin = 0.95;
+  for (auto itr = buffers.rbegin() + 1; itr != buffers.rend(); itr++) {
+    if (itr->metric >= margin * highest_metric.metric) {
+      // buffer within margin, so check if area is smaller
+      const float best_buffer_area = best_buffer.cell->area();
+      const float buffer_area = itr->cell->area();
+
+      if (buffer_area < best_buffer_area) {
+        best_buffer = *itr;
+      }
+    }
+  }
+
+  return best_buffer.cell;
 }
 
 float
@@ -350,6 +382,8 @@ RepairHold::repairEndHold(Vertex *end_vertex,
         if (path_vertex->isDriver(network_)
             && !resizer_->dontTouch(path_net)) {
           PinSeq load_pins;
+          Slacks slacks;
+          mergeInit(slacks);
           float excluded_cap = 0.0;
           bool loads_have_out_port = false;
           VertexOutEdgeIterator edge_iter(path_vertex, graph_);
@@ -362,6 +396,9 @@ RepairHold::repairEndHold(Vertex *end_vertex,
               Pin *load_pin = fanout->pin();
               if (fanout_hold_slack < hold_margin) {
                 load_pins.push_back(load_pin);
+                Slacks fanout_slacks;
+                sta_->vertexSlacks(fanout, fanout_slacks);
+                mergeInto(fanout_slacks, slacks);
                 if (network_->direction(load_pin)->isAnyOutput()
                     && network_->isTopLevelPort(load_pin))
                   loads_have_out_port = true;
@@ -374,8 +411,6 @@ RepairHold::repairEndHold(Vertex *end_vertex,
             }
           }
           if (!load_pins.empty()) {
-            Slack slacks[RiseFall::index_count][MinMax::index_count];
-            sta_->vertexSlacks(path_vertex, slacks);
             debugPrint(logger_, RSZ,
                        "repair_hold", 3, " {} hold_slack={}/{} setup_slack={}/{} fanouts={}",
                        path_vertex->name(network_),
@@ -392,17 +427,17 @@ RepairHold::repairEndHold(Vertex *end_vertex,
             resizer_->bufferDelays(buffer_cell, load_cap, dcalc_ap,
                                    buffer_delays, buffer_slews);
             // setup_slack > -hold_slack
-            if (slacks[rise_index_][max_index_] - setup_margin
-                > -(slacks[rise_index_][min_index_] - hold_margin)
-                && slacks[fall_index_][max_index_] - setup_margin
-                > -(slacks[fall_index_][min_index_] - hold_margin)
-                // enough slack to insert the buffer
-                // setup_slack > buffer_delay
-                && (allow_setup_violations
-                    || ((slacks[rise_index_][max_index_] - setup_margin)
-                        > buffer_delays[rise_index_]
-                        && (slacks[fall_index_][max_index_] - setup_margin)
-                        > buffer_delays[fall_index_]))) {
+            if (allow_setup_violations
+                || (slacks[rise_index_][max_index_] - setup_margin
+                    > -(slacks[rise_index_][min_index_] - hold_margin)
+                    && slacks[fall_index_][max_index_] - setup_margin
+                    > -(slacks[fall_index_][min_index_] - hold_margin)
+                    // enough slack to insert the buffer
+                    // setup_slack > buffer_delay
+                    && (slacks[rise_index_][max_index_] - setup_margin)
+                    > buffer_delays[rise_index_]
+                    && (slacks[fall_index_][max_index_] - setup_margin)
+                    > buffer_delays[fall_index_])) {
               Vertex *path_load = expanded.path(i + 1)->vertex(sta_);
               Point path_load_loc = db_network_->location(path_load->pin());
               Point drvr_loc = db_network_->location(path_vertex->pin());
@@ -429,6 +464,29 @@ RepairHold::repairEndHold(Vertex *end_vertex,
       }
     }
   }
+}
+
+void
+RepairHold::mergeInit(Slacks &slacks)
+{
+  slacks[rise_index_][min_index_] = INF;
+  slacks[fall_index_][min_index_] = INF;
+  slacks[rise_index_][max_index_] = -INF;
+  slacks[fall_index_][max_index_] = -INF;
+}
+
+void
+RepairHold::mergeInto(Slacks &slacks,
+                      Slacks &result)
+{
+  result[rise_index_][min_index_] = min(result[rise_index_][min_index_],
+                                        slacks[rise_index_][min_index_]);
+  result[fall_index_][min_index_] = min(result[fall_index_][min_index_],
+                                        slacks[fall_index_][min_index_]);
+  result[rise_index_][max_index_] = max(result[rise_index_][max_index_],
+                                        slacks[rise_index_][max_index_]);
+  result[fall_index_][max_index_] = max(result[fall_index_][max_index_],
+                                        slacks[fall_index_][max_index_]);
 }
 
 void

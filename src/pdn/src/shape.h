@@ -210,8 +210,19 @@ class Shape
 
   static const Box rectToBox(const odb::Rect& rect);
 
-  bool allowsNonPreferredDirectionChange() const { return allow_non_preferred_change_; }
-  virtual void setAllowsNonPreferredDirectionChange() { allow_non_preferred_change_ = true; }
+  bool allowsNonPreferredDirectionChange() const
+  {
+    return allow_non_preferred_change_;
+  }
+  virtual void setAllowsNonPreferredDirectionChange()
+  {
+    allow_non_preferred_change_ = true;
+  }
+
+ protected:
+  bool cut(const ShapeTree& obstructions,
+           std::vector<Shape*>& replacements,
+           const std::function<bool(const ShapeValue&)>& obs_filter) const;
 
  private:
   odb::dbTechLayer* layer_;

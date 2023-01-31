@@ -31,20 +31,23 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef __REPLACE_NESTEROV_PLACE__
-#define __REPLACE_NESTEROV_PLACE__
+#pragma once
+
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "point.h"
-#include <memory>
-#include <vector>
-#include <string>
 
 namespace utl {
 class Logger;
 }
 
-namespace gpl 
-{
+namespace odb {
+class dbInst;
+}
+
+namespace gpl {
 
 class PlacerBase;
 class Instance;
@@ -53,23 +56,24 @@ class RouteBase;
 class TimingBase;
 class Graphics;
 
-class NesterovPlaceVars {
-  public:
+class NesterovPlaceVars
+{
+ public:
   int maxNesterovIter;
   int maxBackTrack;
-  float initDensityPenalty; // INIT_LAMBDA
-  float initWireLengthCoef; // base_wcof
-  float targetOverflow; // overflow
-  float minPhiCoef; // pcof_min
-  float maxPhiCoef; // pcof_max
-  float minPreconditioner; // MIN_PRE
-  float initialPrevCoordiUpdateCoef; // z_ref_alpha
-  float referenceHpwl; // refDeltaHpwl
+  float initDensityPenalty;           // INIT_LAMBDA
+  float initWireLengthCoef;           // base_wcof
+  float targetOverflow;               // overflow
+  float minPhiCoef;                   // pcof_min
+  float maxPhiCoef;                   // pcof_max
+  float minPreconditioner;            // MIN_PRE
+  float initialPrevCoordiUpdateCoef;  // z_ref_alpha
+  float referenceHpwl;                // refDeltaHpwl
   float routabilityCheckOverflow;
 
   static const int maxRecursionWlCoef = 10;
   static const int maxRecursionInitSLPCoef = 10;
-  
+
   bool forceCPU;
   bool timingDrivenMode;
   bool routabilityDrivenMode;
@@ -77,39 +81,39 @@ class NesterovPlaceVars {
   int debug_pause_iterations;
   int debug_update_iterations;
   bool debug_draw_bins;
+  odb::dbInst* debug_inst;
 
   NesterovPlaceVars();
   void reset();
 };
 
-class NesterovPlace {
-public:
+class NesterovPlace
+{
+ public:
   NesterovPlace();
   NesterovPlace(const NesterovPlaceVars& npVars,
-      std::shared_ptr<PlacerBase> pb,
-      std::shared_ptr<NesterovBase> nb,
-      std::shared_ptr<RouteBase> rb,
-      std::shared_ptr<TimingBase> tb,
-      utl::Logger* log);
+                std::shared_ptr<PlacerBase> pb,
+                std::shared_ptr<NesterovBase> nb,
+                std::shared_ptr<RouteBase> rb,
+                std::shared_ptr<TimingBase> tb,
+                utl::Logger* log);
   ~NesterovPlace();
 
   // return iteration count
   int doNesterovPlace(int start_iter = 0);
 
-  void updateGradients(
-      std::vector<FloatPoint>& sumGrads,
-      std::vector<FloatPoint>& wireLengthGrads,
-      std::vector<FloatPoint>& densityGrads );
+  void updateGradients(std::vector<FloatPoint>& sumGrads,
+                       std::vector<FloatPoint>& wireLengthGrads,
+                       std::vector<FloatPoint>& densityGrads);
 
   void updateWireLengthCoef(float overflow);
 
   void updateInitialPrevSLPCoordi();
 
-  float getStepLength(
-      const std::vector<FloatPoint>& prevCoordi_,
-      const std::vector<FloatPoint>& prevSumGrads_,
-      const std::vector<FloatPoint>& curCoordi_,
-      const std::vector<FloatPoint>& curSumGrads_ );
+  float getStepLength(const std::vector<FloatPoint>& prevCoordi_,
+                      const std::vector<FloatPoint>& prevSumGrads_,
+                      const std::vector<FloatPoint>& curCoordi_,
+                      const std::vector<FloatPoint>& curSumGrads_);
 
   void updateNextIter();
   float getPhiCoef(float scaledDiffHpwl) const;
@@ -123,7 +127,7 @@ public:
   void setTargetOverflow(float overflow) { npVars_.targetOverflow = overflow; }
   void setMaxIters(int limit) { npVars_.maxNesterovIter = limit; }
 
-private:
+ private:
   std::shared_ptr<PlacerBase> pb_;
   std::shared_ptr<NesterovBase> nb_;
   utl::Logger* log_;
@@ -131,7 +135,7 @@ private:
   std::shared_ptr<TimingBase> tb_;
   NesterovPlaceVars npVars_;
   std::unique_ptr<Graphics> graphics_;
-  
+
   // SLP is Step Length Prediction.
   //
   // y_st, y_dst, y_wdst, w_pdst
@@ -180,6 +184,7 @@ private:
 
   // phi is described in ePlace paper.
   float sumOverflow_;
+  float sumOverflowUnscaled_;
 
   // half-parameter-wire-length
   int64_t prevHpwl_;
@@ -188,7 +193,7 @@ private:
   float isRoutabilityNeed_;
 
   std::string divergeMsg_;
-  int divergeCode_; 
+  int divergeCode_;
 
   int recursionCntWlCoef_;
   int recursionCntInitSLPCoef_;
@@ -197,8 +202,5 @@ private:
 
   void init();
   void reset();
-
 };
-}
-
-#endif
+}  // namespace gpl

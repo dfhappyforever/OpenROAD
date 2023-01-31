@@ -28,7 +28,7 @@ OpenROAD uses the OpenDB database and OpenSTA for static timing analysis.
 
 Documentation is also available [here](https://openroad.readthedocs.io/en/latest/main/README.html).
 
-# Introduction
+## Getting Started with OpenROAD
 
 [OpenROAD](https://theopenroadproject.org/) is the leading
 open-source, foundational application for semiconductor digital design.
@@ -63,7 +63,7 @@ implementation.
 
 ![rtl2gds.webp](./docs/images/rtl2gds.webp)
 
-## GUI
+### GUI
 
 The OpenROAD GUI is a powerful visualization, analysis, and debugging
 tool with a customizable Tcl interface. The below figures show GUI views for
@@ -72,15 +72,15 @@ CTS.
 
 ![ibexGui.webp](./docs/images/ibexGui.webp)
 
-## Placement Congestion View:
+### Placement Congestion View:
 
 ![pl_congestion.webp](./docs/images/pl_congestion.webp)
 
-## CTS:
+### CTS:
 
 ![clk_routing.webp](./docs/images/clk_routing.webp)
 
-# PDK Support
+### PDK Support
 
 The OpenROAD application is PDK independent. However, it has been tested
 and validated with specific PDKs in the context of various flow
@@ -91,13 +91,14 @@ OpenLane supports Skywater130.
 OpenROAD-flow-scripts supports several public and private PDKs
 including:
 
-## Open-Source PDKs
+#### Open-Source PDKs
 
+-   `GF180` - 180nm
 -   `Skywater130` - 130nm
 -   `Nangate45` - 45nm
 -   `ASAP7` - Predictive FinFET 7nm
 
-## Proprietary PDKs
+#### Proprietary PDKs
 
 These PDKS are supported in OpenROAD-flow-scripts only. They are used to
 test and calibrate OpenROAD against commercial platforms and ensure good
@@ -106,14 +107,13 @@ provided due to NDA restrictions. However, if you are able to access
 these platforms independently, you can create the necessary
 platform-specific files yourself.
 
--   `GF180` - 180nm
 -   `GF55` - 55nm
 -   `GF12` - 12nm
 -   `Intel22` - 22nm
 -   `Intel16` - 16nm
 -   `TSMC65` - 65nm
 
-# Tapeouts
+## Tapeouts
 
 OpenROAD has been used for full physical implementation in over 240 tapeouts
 in Sky130 through the Google-sponsored, Efabless [MPW
@@ -122,11 +122,11 @@ shuttle](https://efabless.com/open_shuttle_program) and
 
 ![shuttle.webp](./docs/images/shuttle.webp)
 
-## OpenTitan SoC on GF12LP - Physical design and optimization using OpenROAD
+### OpenTitan SoC on GF12LP - Physical design and optimization using OpenROAD
 
 ![OpenTitan_SoC.webp](./docs/images/OpenTitan_SoC.webp)
 
-## Continuous Tapeout Integration into CI
+### Continuous Tapeout Integration into CI
 
 The OpenROAD project actively adds successfully taped out MPW shuttle
 designs to the [CI regression
@@ -138,15 +138,15 @@ transceivers, OpenPower-based Microwatt etc.
 ## Install dependencies
 
 For a limited number of configurations, the following script can be used
-to install dependencies. The script `etc/DependencyInstaller.sh` supports
-Centos7 and Ubuntu 20.04. You need root access to correctly install the
-dependencies with the script.
+to install dependencies.  The script `etc/DependencyInstaller.sh` supports
+Centos7, Ubuntu 20.04, Ubuntu 22.04, RHEL 8, Debian 10 and Debian 11. To correctly install the dependencies with the
+script you need to run as root or prepend `sudo` to the commands below.
 
 ``` shell
 ./etc/DependencyInstaller.sh -help
 
-Usage: ./etc/DependencyInstaller.sh -run[time]      # installs dependencies to run a pre-compiled binary
-       ./etc/DependencyInstaller.sh -dev[elopment]  # installs dependencies to compile the openroad binary
+Usage: ./etc/DependencyInstaller.sh -prefix=DIR    # installs dependencies in an existing user specified directory
+       ./etc/DependencyInstaller.sh -local         # installs dependencies in "$HOME/.local"
 
 ```
 
@@ -214,16 +214,16 @@ To install in a different directory use:
 ```
 
 ### LTO Options
-By default, OpenROAD is built with link time optimizations enabled. This adds 
+By default, OpenROAD is built with link time optimizations enabled. This adds
 about 1 minute to compile times and improves the runtime by about 11%. If
 you would like to disable LTO pass `-DLINK_TIME_OPTIMIZATION=OFF` when
 generating a build.
 
 ### GPU acceleration
-The default solver for initial placement is single threaded. If you would like 
-to enable GPU and use the CUDA solver, set `-DGPU=true` at cmake time. 
+The default solver for initial placement is single threaded. If you would like
+to enable GPU and use the CUDA solver, set `-DGPU=true` at cmake time.
 
-Also, remember to install CUDA Toolkit and proper driver manually. See https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html 
+Also, remember to install CUDA Toolkit and proper driver manually. See https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html
 
 ## Regression Tests
 
@@ -286,7 +286,7 @@ Below is a list of the available tools/modules included in the OpenROAD app:
 | [ioPlacer](./src/ppl/README.md) | Pin placement |
 | [ICeWall](./src/pad/README.md) | Chip-level connections |
 | [TritonMacroPlacer](./src/mpl/README.md) | Macro placement |
-| [Tapcell](./src/tap/README.md) | Tapcell insertion | 
+| [Tapcell](./src/tap/README.md) | Tapcell insertion |
 | [PDN](./src/pdn/README.md), [PDNSim](./src/psm/README.md) | PDN analysis |
 | [RePlAce](./src/gpl/README.md) | Global placement |
 | [OpenSTA](src/sta/README.md) | Timing analysis |

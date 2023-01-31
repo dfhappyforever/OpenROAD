@@ -667,10 +667,13 @@ void lefin::layer(lefiLayer* layer)
         eolkoutParser.parse(layer->propValue(iii), l);
       } else if (!strcmp(layer->propName(iii), "LEF58_WIDTHTABLE")) {
         WidthTableParser parser(l, this);
-        valid = parser.parse(layer->propValue(iii));
+        parser.parse(layer->propValue(iii));
       } else if (!strcmp(layer->propName(iii), "LEF58_MINIMUMCUT")) {
         MinCutParser parser(l, this);
         parser.parse(layer->propValue(iii));
+      } else if (!strcmp(layer->propName(iii), "LEF58_AREA")) {
+        lefTechLayerAreaRuleParser parser(this);
+        parser.parse(layer->propValue(iii), l, _incomplete_props);
       } else
         supported = false;
     } else if (type.getValue() == dbTechLayerType::CUT) {
@@ -710,7 +713,13 @@ void lefin::layer(lefiLayer* layer)
                     layer->name(),
                     layer->propValue(iii));
   }
-
+  // update wrong way width
+  for (auto rule : l->getTechLayerWidthTableRules()) {
+    if (rule->isWrongDirection()) {
+      l->setWrongWayWidth(*rule->getWidthTable().begin());
+      break;
+    }
+  }
   if (layer->hasWidth())
     l->setWidth(dbdist(layer->width()));
 
@@ -798,6 +807,25 @@ void lefin::layer(lefiLayer* layer)
         cur_rule->setCutLayer4Spacing(tmply);
       } else
         l->setSpacing(dbdist(layer->spacing(j)));
+    }
+  }
+
+  if (layer->hasArraySpacing()) {
+    const bool is_long = layer->hasLongArray();
+    const int cut_spacing = dbdist(layer->cutSpacing());
+    int width = 0;
+    if (layer->hasViaWidth()) {
+      width = dbdist(layer->viaWidth());
+    }
+    for (j = 0; j < layer->numArrayCuts(); j++) {
+      const int array_spacing = dbdist(layer->arraySpacing(j));
+      const int cuts = layer->arrayCuts(j);
+
+      auto* rule = odb::dbTechLayerArraySpacingRule::create(l);
+      rule->setCutSpacing(cut_spacing);
+      rule->setArrayWidth(width);
+      rule->setLongArray(is_long);
+      rule->setCutsArraySpacing(cuts, array_spacing);
     }
   }
 
@@ -894,17 +922,19 @@ void lefin::layer(lefiLayer* layer)
   int k;
 
   if (layer->numAntennaModel() > 0) {
-    for (j = 0; j < MIN(layer->numAntennaModel(), 2); j++) {
+    for (j = 0; j < std::min(layer->numAntennaModel(), 2); j++) {
       cur_ant_rule = (j == 1) ? l->createOxide2AntennaRule()
                               : l->createDefaultAntennaRule();
       cur_model = layer->antennaModel(j);
       if (cur_model->hasAntennaAreaFactor()) {
-          cur_ant_rule->setAreaFactor(cur_model->antennaAreaFactor(), cur_model->hasAntennaAreaFactorDUO());
+        cur_ant_rule->setAreaFactor(cur_model->antennaAreaFactor(),
+                                    cur_model->hasAntennaAreaFactorDUO());
       }
 
       if (cur_model->hasAntennaSideAreaFactor()) {
-          cur_ant_rule->setSideAreaFactor(cur_model->antennaSideAreaFactor(),
-                                          cur_model->hasAntennaSideAreaFactorDUO());
+        cur_ant_rule->setSideAreaFactor(
+            cur_model->antennaSideAreaFactor(),
+            cur_model->hasAntennaSideAreaFactorDUO());
       }
 
       if (cur_model->hasAntennaAreaRatio()) {
@@ -2099,6 +2129,20 @@ bool lefin::readLef(const char* lef_file)
                         "referencing undefined layer {}",
                         name);
           odb::dbMetalWidthViaMap::destroy(metalWidthViaMap);
+        }
+        break;
+      }
+      case odb::dbTechLayerAreaRuleObj: {
+        odb::dbTechLayerAreaRule* areaRule = (odb::dbTechLayerAreaRule*) obj;
+        if (layer != nullptr) {
+          areaRule->setTrimLayer(layer);
+        } else {
+          _logger->warn(
+              utl::ODB,
+              361,
+              "dropping LEF58_AREA for referencing undefined layer {}",
+              name);
+          odb::dbTechLayerAreaRule::destroy(areaRule);
         }
         break;
       }

@@ -17,6 +17,7 @@ record_tests {
   random6
   random7
   random8
+  random9
   blocked_region
   cells_not_placed
   exclude1
@@ -30,6 +31,10 @@ record_tests {
   add_constraint6
   add_constraint7
   add_constraint8
+  add_constraint9
+  add_constraint10
+  add_constraint_error1
+  add_constraint_error2
   group_pins1
   group_pins2
   group_pins3
@@ -47,6 +52,7 @@ record_tests {
   top_layer7
   top_layer_error
   pin_length
+  pin_length_error
   pin_extension
   pin_thick_multiplier
   place_pin1
@@ -54,6 +60,7 @@ record_tests {
   place_pin3
   place_pin4
   place_pin5
+  place_pin6
   place_pin_error1
   place_pin_error2
   place_pin_error3

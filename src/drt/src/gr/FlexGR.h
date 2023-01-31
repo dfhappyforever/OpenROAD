@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_FLEXGR_H_
-#define _FR_FLEXGR_H_
+#pragma once
 
 #include <boost/icl/interval_map.hpp>
 #include <boost/icl/interval_set.hpp>
@@ -41,7 +40,7 @@
 namespace odb {
 class dbDatabase;
 class Rect;
-}
+}  // namespace odb
 namespace stt {
 class SteinerTreeBuilder;
 }
@@ -52,8 +51,15 @@ class FlexGR
 {
  public:
   // constructors
-  FlexGR(frDesign* designIn, Logger* logger, stt::SteinerTreeBuilder* stt_builder)
-      : db_(nullptr), design_(designIn), cmap_(nullptr), cmap2D_(nullptr), logger_(logger), stt_builder_(stt_builder)
+  FlexGR(frDesign* designIn,
+         Logger* logger,
+         stt::SteinerTreeBuilder* stt_builder)
+      : db_(nullptr),
+        design_(designIn),
+        cmap_(nullptr),
+        cmap2D_(nullptr),
+        logger_(logger),
+        stt_builder_(stt_builder)
   {
   }
 
@@ -486,5 +492,3 @@ class FlexGRWorker
   void routeNet_printNet(grNet* net);
 };
 }  // namespace fr
-
-#endif

@@ -1,4 +1,5 @@
 source "helpers.tcl"
+source "cts-helpers.tcl"
 
 read_liberty Nangate45/Nangate45_typ.lib
 read_lef Nangate45/Nangate45.lef
@@ -22,4 +23,4 @@ clock_tree_synthesis -root_buf CLKBUF_X3 \
                      -distance_between_buffers 100 \
                      -num_static_layers 1
 
-exit
+

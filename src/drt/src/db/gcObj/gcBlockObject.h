@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _GC_BLOCKOBJECT_H_
-#define _GC_BLOCKOBJECT_H_
+#pragma once
 
 #include "db/obj/frBlockObject.h"
 #include "frBaseTypes.h"
@@ -44,8 +43,5 @@ class gcBlockObject : public frBlockObject
   // constructors
   gcBlockObject() : frBlockObject() {}
   gcBlockObject(const gcBlockObject& in) : frBlockObject(in) {}
-
 };
 }  // namespace fr
-
-#endif

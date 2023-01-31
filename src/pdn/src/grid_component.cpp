@@ -40,9 +40,8 @@
 
 namespace pdn {
 
-GridComponent::GridComponent(Grid* grid) :
-    grid_(grid),
-    starts_with_power_(grid_->startsWithPower())
+GridComponent::GridComponent(Grid* grid)
+    : grid_(grid), starts_with_power_(grid_->startsWithPower())
 {
 }
 
@@ -345,10 +344,13 @@ void GridComponent::writeToDb(
       });
 
   for (const auto& shape : all_shapes) {
-    odb::dbNet* net = shape->getNet();
+    auto net = net_map.find(shape->getNet());
+    if (net == net_map.end()) {
+      continue;
+    }
     const bool is_pin_layer = convert_layer_to_pin.find(shape->getLayer())
                               != convert_layer_to_pin.end();
-    shape->writeToDb(net_map.at(net), add_pins, is_pin_layer);
+    shape->writeToDb(net->second, add_pins, is_pin_layer);
   }
 }
 
@@ -468,7 +470,11 @@ void GridComponent::setNets(const std::vector<odb::dbNet*>& nets)
   const auto grid_nets = grid_->getNets();
   for (auto* net : nets) {
     if (std::find(grid_nets.begin(), grid_nets.end(), net) == grid_nets.end()) {
-      getLogger()->error(utl::PDN, 224, "{} is not a net in {}.", net->getName(), grid_->getLongName());
+      getLogger()->error(utl::PDN,
+                         224,
+                         "{} is not a net in {}.",
+                         net->getName(),
+                         grid_->getLongName());
     }
   }
 

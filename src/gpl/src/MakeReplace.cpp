@@ -31,14 +31,16 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <tcl.h>
-#include "sta/StaMain.hh"
-#include "ord/OpenRoad.hh"
 #include "gpl/MakeReplace.h"
+
+#include <tcl.h>
+
 #include "gpl/Replace.h"
+#include "ord/OpenRoad.hh"
+#include "sta/StaMain.hh"
 
 namespace sta {
-extern const char *gpl_tcl_inits[];
+extern const char* gpl_tcl_inits[];
 }
 
 extern "C" {
@@ -47,27 +49,25 @@ extern int Gpl_Init(Tcl_Interp* interp);
 
 namespace ord {
 
-gpl::Replace* 
-makeReplace() {
+gpl::Replace* makeReplace()
+{
   return new gpl::Replace();
 }
 
-void
-initReplace(OpenRoad* openroad) {
+void initReplace(OpenRoad* openroad)
+{
   Tcl_Interp* tcl_interp = openroad->tclInterp();
   Gpl_Init(tcl_interp);
   sta::evalTclInit(tcl_interp, sta::gpl_tcl_inits);
-  // Replace should define an init function that takes these args.
-  // There is no reason for all these set functions to exist. -cherry
-  openroad->getReplace()->setDb(openroad->getDb());
-  openroad->getReplace()->setLogger(openroad->getLogger());
-  openroad->getReplace()->setGlobalRouter(openroad->getGlobalRouter());
-  openroad->getReplace()->setResizer(openroad->getResizer());
+  openroad->getReplace()->init(openroad->getDb(),
+                               openroad->getResizer(),
+                               openroad->getGlobalRouter(),
+                               openroad->getLogger());
 }
 
-void
-deleteReplace(gpl::Replace *replace) {
+void deleteReplace(gpl::Replace* replace)
+{
   delete replace;
 }
 
-}
+}  // namespace ord

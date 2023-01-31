@@ -1,5 +1,6 @@
 # fanout 8000 max_fanout 20 stress test
 # modified to use large default max_transition, max_capacitance
+source "helpers.tcl"
 read_liberty repair_fanout6.lib
 read_lef sky130hd/sky130hd.tlef
 read_lef sky130hd/sky130hd_std_cell.lef
@@ -18,7 +19,7 @@ estimate_parasitics -placement
 
 repair_design -max_wire_length 100000
 
-report_checks -path_delay max -fields {slew cap input nets fanout}
+report_worst_slack -max
 
 report_check_types -max_fanout
 
@@ -26,5 +27,5 @@ report_check_types -max_fanout
 # but there is no point in inserting extra buffers to fix non critical
 # paths. What matters is repair_timning's ability to optimize the timing
 # when it matters.
-repair_timing -setup
-report_checks -path_delay max -fields {slew cap input nets fanout}
+repair_timing -setup -repair_tns 0
+report_worst_slack -max

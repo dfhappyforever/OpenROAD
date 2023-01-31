@@ -30,8 +30,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef ADS_EXTPROCESS_H
-#define ADS_EXTPROCESS_H
+#pragma once
 
 #include "array1.h"
 #include "odb.h"
@@ -43,10 +42,10 @@ class Logger;
 
 namespace rcx {
 
-using utl::Logger;
 using odb::Ath__array1D;
 using odb::Ath__parser;
 using odb::uint;
+using utl::Logger;
 
 class extProcess;
 
@@ -157,11 +156,6 @@ class extMasterConductor
   void resetThicknessHeight(double height, double thickness);
   void resetWidth(double top_width, double bottom_width);
 
-  double writeRaphaelBox(FILE* fp,
-                         uint wireNum,
-                         double width,
-                         double X,
-                         double volt);
   void writeRaphaelPoly(FILE* fp, uint wireNum, double X, double volt);
   void writeRaphaelPoly3D(FILE* fp,
                           uint wireNum,
@@ -260,12 +254,6 @@ class extVarTable
 class extVariation
 {
  public:
-  int readVariation(Ath__parser* parser);
-  extVarTable* readVarTable(Ath__parser* parser,
-                            const char* key1,
-                            const char* key2,
-                            const char* key3,
-                            const char* endKey);
   void printVariation(FILE* fp, uint n);
   Ath__array1D<double>* getWidthTable();
   Ath__array1D<double>* getSpaceTable();
@@ -303,18 +291,7 @@ class extProcess
   extProcess(uint condCnt, uint dielCnt, Logger* logger);
   ~extProcess();
   FILE* openFile(const char* filename, const char* permissions);
-  uint readProcess(const char* name, char* filename);
-  void writeProcess(const char* filename);
   void createMasterLayers();
-  void writeProcess(FILE* fp,
-                    char* gndName,
-                    float planeWidth,
-                    float planeThickness);
-  void writeProcess3D(FILE* fp,
-                      char* gndName,
-                      float blockWidth,
-                      float blockThickness,
-                      float blockLength);
   extConductor* getConductor(uint ii);
   extMasterConductor* getMasterConductor(uint ii);
   uint getConductorCnt() { return _condTable->getCnt(); };
@@ -411,5 +388,3 @@ class extProcess
 };
 
 }  // namespace rcx
-
-#endif

@@ -45,6 +45,7 @@
 #include <variant>
 
 #include "gui/gui.h"
+#include "inspector.h"
 #include "odb/db.h"
 
 namespace utl {
@@ -118,12 +119,10 @@ class DRCDescriptor : public Descriptor
   std::string getTypeName() const override;
   bool getBBox(std::any object, odb::Rect& bbox) const override;
 
-  void highlight(std::any object,
-                 Painter& painter,
-                 void* additional_data) const override;
+  void highlight(std::any object, Painter& painter) const override;
 
   Properties getProperties(std::any object) const override;
-  Selected makeSelected(std::any object, void* additional_data) const override;
+  Selected makeSelected(std::any object) const override;
   bool lessThan(std::any l, std::any r) const override;
 
   bool getAllObjects(SelectionSet& objects) const override;
@@ -165,6 +164,7 @@ class DRCWidget : public QDockWidget
 
  signals:
   void selectDRC(const Selected& selected);
+  void focus(const Selected& selected);
 
  public slots:
   void loadReport(const QString& filename);
@@ -177,6 +177,10 @@ class DRCWidget : public QDockWidget
   void selectionChanged(const QItemSelection& selected,
                         const QItemSelection& deselected);
 
+ private slots:
+  void focusIndex(const QModelIndex& index);
+  void defocus();
+
  protected:
   void showEvent(QShowEvent* event) override;
   void hideEvent(QHideEvent* event) override;
@@ -188,7 +192,7 @@ class DRCWidget : public QDockWidget
 
   utl::Logger* logger_;
 
-  QTreeView* view_;
+  ObjectTree* view_;
   DRCItemModel* model_;
 
   odb::dbBlock* block_;

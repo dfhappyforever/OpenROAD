@@ -33,9 +33,13 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+%include <std_string.i>
+
 %{
 
 #include "odb/db.h"
+#include "ord/Tech.h"
+#include "ord/Design.h"
 
 using odb::dbDatabase;
 using odb::dbBlock;
@@ -62,6 +66,12 @@ get_db_block();
 
 %}
 
+%include "Exception-py.i"
+%include "ord/Tech.h"
+%include "ord/Design.h"
+
+%newobject Design::getFloorplan();
+
 const char *
 openroad_version();
 
@@ -79,3 +89,12 @@ db_has_tech();
 
 odb::dbBlock *
 get_db_block();
+
+%inline %{
+
+namespace ord {
+  void set_thread_count(int threads);
+  int thread_count();
+}
+
+%}

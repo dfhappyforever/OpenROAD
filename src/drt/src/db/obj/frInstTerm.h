@@ -26,14 +26,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_INSTTERM_H_
-#define _FR_INSTTERM_H_
+#pragma once
 
 #include <memory>
 
 #include "db/obj/frBlockObject.h"
-#include "db/obj/frMTerm.h"
 #include "db/obj/frInst.h"
+#include "db/obj/frMTerm.h"
 #include "db/obj/frNet.h"
 #include "frBaseTypes.h"
 
@@ -51,7 +50,12 @@ class frInstTerm : public frBlockObject
   {
   }
   frInstTerm(const frInstTerm& in)
-      : frBlockObject(), inst_(in.inst_), term_(in.term_), net_(in.net_), ap_(), index_in_owner_(0)
+      : frBlockObject(),
+        inst_(in.inst_),
+        term_(in.term_),
+        net_(in.net_),
+        ap_(),
+        index_in_owner_(0)
   {
   }
   // getters
@@ -82,9 +86,6 @@ class frInstTerm : public frBlockObject
   frNet* net_;
   std::vector<frAccessPoint*> ap_;  // follows pin index
   int index_in_owner_;
-
 };
 
 }  // namespace fr
-
-#endif

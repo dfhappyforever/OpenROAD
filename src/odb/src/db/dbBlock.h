@@ -33,6 +33,7 @@
 #pragma once
 
 #include <list>
+#include <vector>
 
 #include "dbCore.h"
 #include "dbHashTable.h"
@@ -88,9 +89,14 @@ class _dbBPin;
 class _dbTechLayerRule;
 class _dbTechNonDefaultRule;
 class _dbModule;
+class _dbPowerDomain;
+class _dbLogicPort;
+class _dbPowerSwitch;
+class _dbIsolation;
 class _dbModInst;
 class _dbGroup;
 class _dbAccessPoint;
+class _dbGlobalConnect;
 class _dbGuide;
 class dbJournal;
 
@@ -102,6 +108,7 @@ class dbRegionInstItr;
 class dbModuleInstItr;
 class dbModuleModInstItr;
 class dbRegionGroupItr;
+class dbGlobalConnect;
 class dbGroupItr;
 class dbGroupInstItr;
 class dbGroupModInstItr;
@@ -176,6 +183,10 @@ class _dbBlock : public _dbObject
   dbHashTable<_dbInst> _inst_hash;
   dbHashTable<_dbModule> _module_hash;
   dbHashTable<_dbModInst> _modinst_hash;
+  dbHashTable<_dbPowerDomain> _powerdomain_hash;
+  dbHashTable<_dbLogicPort> _logicport_hash;
+  dbHashTable<_dbPowerSwitch> _powerswitch_hash;
+  dbHashTable<_dbIsolation> _isolation_hash;
   dbHashTable<_dbGroup> _group_hash;
   dbIntHashTable<_dbInstHdr> _inst_hdr_hash;
   dbHashTable<_dbBTerm> _bterm_hash;
@@ -211,9 +222,14 @@ class _dbBlock : public _dbObject
   dbTable<_dbTechLayerRule>* _layer_rule_tbl;
   dbTable<_dbProperty>* _prop_tbl;
   dbTable<_dbModule>* _module_tbl;
+  dbTable<_dbPowerDomain>* _powerdomain_tbl;
+  dbTable<_dbLogicPort>* _logicport_tbl;
+  dbTable<_dbPowerSwitch>* _powerswitch_tbl;
+  dbTable<_dbIsolation>* _isolation_tbl;
   dbTable<_dbModInst>* _modinst_tbl;
   dbTable<_dbGroup>* _group_tbl;
   dbTable<_dbAccessPoint>* ap_tbl_;
+  dbTable<_dbGlobalConnect>* global_connect_tbl_;
   dbTable<_dbGuide>* _guide_tbl;
   _dbNameCache* _name_cache;
 
@@ -279,6 +295,8 @@ class _dbBlock : public _dbObject
   bool operator!=(const _dbBlock& rhs) const { return !operator==(rhs); }
   void differences(dbDiff& diff, const char* field, const _dbBlock& rhs) const;
   void out(dbDiff& diff, char side, const char* field) const;
+
+  int globalConnect(const std::vector<dbGlobalConnect*>& connects);
 
   dbObjectTable* getObjectTable(dbObjectType type);
 };

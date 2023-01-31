@@ -141,7 +141,7 @@ getMacroPlacer()
   return openroad->getMacroPlacer();
 }
 
-mpl::MacroPlacer2 *
+mpl2::MacroPlacer2 *
 getMacroPlacer2()
 {
   OpenRoad *openroad = getOpenRoad();
@@ -325,6 +325,13 @@ write_def_cmd(const char *filename,
   ord->writeDef(filename, version);
 }
 
+void
+write_lef_cmd(const char *filename)
+{
+  OpenRoad *ord = getOpenRoad();
+  ord->writeLef(filename);
+}
+
 
 void 
 write_cdl_cmd(const char *outFilename,
@@ -350,6 +357,13 @@ write_db_cmd(const char *filename)
 }
 
 void
+diff_dbs(const char *filename1, const char *filename2, const char* diffs)
+{
+  OpenRoad *ord = getOpenRoad();
+  ord->diffDbs(filename1, filename2, diffs);
+}
+
+void
 read_verilog_cmd(const char *filename)
 {
   OpenRoad *ord = getOpenRoad();
@@ -367,16 +381,6 @@ void
 ensure_linked()
 {
   return ensureLinked();
-}
-
-void
-write_verilog_cmd(const char *filename,
-		  bool sort,
-		  bool include_pwr_gnd,
-		  vector<LibertyCell*> *remove_cells)
-{
-  OpenRoad *ord = getOpenRoad();
-  ord->writeVerilog(filename, sort, include_pwr_gnd, remove_cells);
 }
 
 void
@@ -456,17 +460,15 @@ db_has_rows()
 }
 
 bool
-db_layer_has_tracks(unsigned layerId, bool hor)
+db_layer_has_tracks(odb::dbTechLayer* layer, bool hor)
 {
-  dbDatabase *db = OpenRoad::openRoad()->getDb();
-  dbBlock *block = db->getChip()->getBlock();
-  dbTech *tech = db->getTech();
-  
-  dbTechLayer *layer = tech->findRoutingLayer(layerId);
   if (!layer) {
     return false;
   }
     
+  dbDatabase *db = OpenRoad::openRoad()->getDb();
+  dbBlock *block = db->getChip()->getBlock();
+
   dbTrackGrid *trackGrid = block->findTrackGrid(layer);
   if (!trackGrid) {
     return false;
@@ -480,15 +482,15 @@ db_layer_has_tracks(unsigned layerId, bool hor)
 }
 
 bool
-db_layer_has_hor_tracks(unsigned layerId)
+db_layer_has_hor_tracks(odb::dbTechLayer* layer)
 {
-  return db_layer_has_tracks(layerId, true);
+  return db_layer_has_tracks(layer, true);
 }
 
 bool
-db_layer_has_ver_tracks(unsigned layerId)
+db_layer_has_ver_tracks(odb::dbTechLayer* layer)
 {
-  return db_layer_has_tracks(layerId, false);
+  return db_layer_has_tracks(layer, false);
 }
 
 sta::Sta *
@@ -510,15 +512,6 @@ units_initialized()
   OpenRoad *openroad = getOpenRoad();
   return openroad->unitsInitialized();
 }
-
-#ifdef ENABLE_PYTHON3
-void
-python_cmd(const char* py_command)
-{
-  OpenRoad *openroad = getOpenRoad();
-  return openroad->pythonCommand(py_command);
-}
-#endif
 
 namespace ord {
 

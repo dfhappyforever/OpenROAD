@@ -48,21 +48,17 @@ target_sources(rcx
     extCC.cpp
     extCoords.cpp
     extFlow.cpp
-    extRCap.cpp
     extRCmodel.cpp
     extSpef.cpp
     extSpefIn.cpp
-    ext_test_wire.cpp
     extmain.cpp
     extmeasure.cpp
     extDebugPrint.cpp
     extplanes.cpp
     extstats.cpp
     extprocess.cpp
-    exttree.cpp
-    hierSpef.cpp
+    ext2dBox.cpp
     netRC.cpp
-    powerConn.cpp
     MakeOpenRCX.cpp
     extmeasure_res.cpp
 )
@@ -84,3 +80,59 @@ messages(
   TARGET rcx
   OUTPUT_DIR ..
 )
+
+############################################################
+# Unit testing
+############################################################
+enable_testing()
+
+add_executable(rcxUnitTest
+  ${PROJECT_SOURCE_DIR}/test/ext2dBoxTest.cpp
+)
+
+target_include_directories(rcxUnitTest
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/src
+  ${OPENROAD_HOME}/include
+)
+
+target_link_libraries(rcxUnitTest
+  rcx
+)
+
+# Use the shared library if found.  We need to pass this info to
+# the code to select the corresponding include.  Using the shared
+# library speeds up compilation.
+if (Boost_unit_test_framework_FOUND)
+  message(STATUS "Boost unit_test_framework library found")
+  target_link_libraries(trTest
+    Boost::unit_test_framework
+  )
+  target_compile_definitions(trTest
+    PRIVATE
+    HAS_BOOST_UNIT_TEST_LIBRARY
+  )
+endif()
+
+add_test(NAME trTest COMMAND trTest)
+
+if (Python3_FOUND AND BUILD_PYTHON)
+  swig_lib(NAME          rcx_py
+           NAMESPACE     rcx
+           LANGUAGE      python
+           I_FILE        ext-py.i
+           SWIG_INCLUDES ${PROJECT_SOURCE_DIR}/../include
+           SCRIPTS       ${CMAKE_CURRENT_BINARY_DIR}/rcx_py.py
+  )
+
+  target_include_directories(rcx_py
+    PUBLIC
+      ../include
+  )
+
+  target_link_libraries(rcx_py
+    PUBLIC
+      rcx
+  )
+
+endif()

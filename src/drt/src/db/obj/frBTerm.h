@@ -25,8 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_BTERM_H_
-#define _FR_BTERM_H_
+#pragma once
 
 #include <memory>
 
@@ -40,12 +39,10 @@ class frBTerm : public frTerm
 {
  public:
   // constructors
-  frBTerm(const frString& name)
-    : frTerm(name), block_(nullptr), net_(nullptr)
+  frBTerm(const frString& name) : frTerm(name), block_(nullptr), net_(nullptr)
   {
   }
-  frBTerm(const frBTerm& in)
-      : frTerm(in), block_(in.block_)
+  frBTerm(const frBTerm& in) : frTerm(in), block_(in.block_)
   {
     for (auto& uPin : in.getPins()) {
       auto pin = uPin.get();
@@ -123,9 +120,6 @@ class frBTerm : public frTerm
   frBlock* block_;
   std::vector<std::unique_ptr<frBPin>> pins_;  // set later
   frNet* net_;
-
 };
 
 }  // namespace fr
-
-#endif

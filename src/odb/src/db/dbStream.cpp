@@ -30,9 +30,9 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include <iostream>
-
 #include "dbStream.h"
+
+#include <iostream>
 
 #include "db.h"
 
@@ -40,49 +40,49 @@ namespace odb {
 
 dbOStream& operator<<(dbOStream& stream, const Rect& r)
 {
-  stream << r._xlo;
-  stream << r._ylo;
-  stream << r._xhi;
-  stream << r._yhi;
+  stream << r.xlo_;
+  stream << r.ylo_;
+  stream << r.xhi_;
+  stream << r.yhi_;
   return stream;
 }
 
 dbIStream& operator>>(dbIStream& stream, Rect& r)
 {
-  stream >> r._xlo;
-  stream >> r._ylo;
-  stream >> r._xhi;
-  stream >> r._yhi;
+  stream >> r.xlo_;
+  stream >> r.ylo_;
+  stream >> r.xhi_;
+  stream >> r.yhi_;
   return stream;
 }
 
 dbOStream& operator<<(dbOStream& stream, const Point& p)
 {
-  stream << p._x;
-  stream << p._y;
+  stream << p.x_;
+  stream << p.y_;
   return stream;
 }
 
 dbIStream& operator>>(dbIStream& stream, Point& p)
 {
-  stream >> p._x;
-  stream >> p._y;
+  stream >> p.x_;
+  stream >> p.y_;
   return stream;
 }
 
 dbOStream& operator<<(dbOStream& stream, const Oct& o)
 {
-  stream << o.center_high;
-  stream << o.center_low;
-  stream << o.A;
+  stream << o.center_high_;
+  stream << o.center_low_;
+  stream << o.A_;
   return stream;
 }
 
 dbIStream& operator>>(dbIStream& stream, Oct& o)
 {
-  stream >> o.center_high;
-  stream >> o.center_low;
-  stream >> o.A;
+  stream >> o.center_high_;
+  stream >> o.center_low_;
+  stream >> o.A_;
   return stream;
 }
 
@@ -119,8 +119,8 @@ dbIStream::dbIStream(_dbDatabase* db, FILE* f)
 
 std::ostream& operator<<(std::ostream& os, const Rect& box)
 {
-  os << "( " << box.xMin() << " " << box.yMin() << " ) ( " << box.xMax()
-     << " " << box.yMax() << " )";
+  os << "( " << box.xMin() << " " << box.yMin() << " ) ( " << box.xMax() << " "
+     << box.yMax() << " )";
   return os;
 }
 

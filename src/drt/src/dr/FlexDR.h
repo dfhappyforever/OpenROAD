@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FR_FLEXDR_H_
-#define _FR_FLEXDR_H_
+#pragma once
 
 #include <triton_route/TritonRoute.h>
 
@@ -110,6 +109,8 @@ class FlexDR
     int mazeEndIter;
     frUInt4 workerDRCCost;
     frUInt4 workerMarkerCost;
+    frUInt4 workerFixedShapeCost;
+    float workerMarkerDecay;
     int ripupMode;
     bool followGuide;
   };
@@ -294,6 +295,7 @@ class FlexDRWorker
       : design_(design),
         logger_(logger),
         graphics_(nullptr),
+        debugSettings_(nullptr),
         via_data_(via_data),
         routeBox_(),
         extBox_(),
@@ -306,6 +308,8 @@ class FlexDRWorker
         ripupMode_(1),
         workerDRCCost_(ROUTESHAPECOST),
         workerMarkerCost_(MARKERCOST),
+        workerFixedShapeCost_(0),
+        workerMarkerDecay_(0),
         boundaryPin_(),
         pinCnt_(0),
         initNumMarkers_(0),
@@ -319,6 +323,7 @@ class FlexDRWorker
         markers_(),
         rq_(this),
         gcWorker_(nullptr),
+        dist_(nullptr),
         dist_port_(0),
         dist_on_(false),
         isCongested_(false),
@@ -327,13 +332,28 @@ class FlexDRWorker
   }
   FlexDRWorker()
       :  // for serialization
+        design_(nullptr),
         logger_(nullptr),
         graphics_(nullptr),
         debugSettings_(nullptr),
         via_data_(nullptr),
+        drIter_(0),
+        mazeEndIter_(0),
+        followGuide_(false),
+        needRecheck_(false),
+        skipRouting_(false),
+        ripupMode_(0),
+        workerDRCCost_(0),
+        workerMarkerCost_(0),
+        workerFixedShapeCost_(0),
+        workerMarkerDecay_(0),
         boundaryPin_(),
+        pinCnt_(0),
+        initNumMarkers_(0),
         rq_(this),
         gcWorker_(nullptr),
+        dist_(nullptr),
+        dist_port_(0),
         dist_on_(false),
         isCongested_(false),
         save_updates_(false)
@@ -367,13 +387,26 @@ class FlexDRWorker
   void setMazeEndIter(int in) { mazeEndIter_ = in; }
   void setRipupMode(int in) { ripupMode_ = in; }
   void setFollowGuide(bool in) { followGuide_ = in; }
-  void setCost(frUInt4 drcCostIn, frUInt4 markerCostIn)
+  void setCost(frUInt4 drcCostIn,
+               frUInt4 markerCostIn,
+               frUInt4 workerFixedShapeCostIn,
+               float workerMarkerDecayIn)
   {
     workerDRCCost_ = drcCostIn;
     workerMarkerCost_ = markerCostIn;
+    workerFixedShapeCost_ = workerFixedShapeCostIn;
+    workerMarkerDecay_ = workerMarkerDecayIn;
   }
   void setMarkerCost(frUInt4 markerCostIn) { workerMarkerCost_ = markerCostIn; }
   void setDrcCost(frUInt4 drcCostIn) { workerDRCCost_ = drcCostIn; }
+  void setFixedShapeCost(frUInt4 fixedShapeCostIn)
+  {
+    workerFixedShapeCost_ = fixedShapeCostIn;
+  }
+  void setMarkerDecay(float markerDecayIn)
+  {
+    workerMarkerDecay_ = markerDecayIn;
+  }
   void setMarkers(std::vector<frMarker>& in)
   {
     markers_.clear();
@@ -523,7 +556,8 @@ class FlexDRWorker
   bool skipRouting_;
   int ripupMode_;
   // drNetOrderingEnum netOrderingMode;
-  frUInt4 workerDRCCost_, workerMarkerCost_;
+  frUInt4 workerDRCCost_, workerMarkerCost_, workerFixedShapeCost_;
+  float workerMarkerDecay_;
   // used in init route as gr boundary pin
   std::map<frNet*, std::set<std::pair<Point, frLayerNum>>, frBlockObjectComp>
       boundaryPin_;
@@ -542,7 +576,7 @@ class FlexDRWorker
   std::vector<frMarker> bestMarkers_;
   FlexDRWorkerRegionQuery rq_;
 
-  // persistant gc worker
+  // persistent gc worker
   unique_ptr<FlexGCWorker> gcWorker_;
 
   // on-the-fly access points that require adding access edges in the grid graph
@@ -926,6 +960,12 @@ class FlexDRWorker
                    frMIdx z,
                    FlexMazeIdx* prev,
                    FlexMazeIdx* next);
+  void editStyleExt(frSegStyle& currStyle,
+                    frMIdx startX,
+                    frMIdx endX,
+                    frMIdx z,
+                    FlexMazeIdx* prev,
+                    FlexMazeIdx* next);
   bool isInsideTaperBox(frMIdx x,
                         frMIdx y,
                         frMIdx startZ,
@@ -1028,5 +1068,3 @@ class FlexDRWorker
   friend class boost::serialization::access;
 };
 }  // namespace fr
-
-#endif

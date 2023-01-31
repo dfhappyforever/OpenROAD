@@ -26,8 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FLEX_GRID_GRAPH_H
-#define _FLEX_GRID_GRAPH_H
+#pragma once
 
 #include <cstring>
 #include <iostream>
@@ -56,6 +55,7 @@ class FlexGridGraph
         zHeights_(),
         ggDRCCost_(0),
         ggMarkerCost_(0),
+        ggFixedShapeCost_(0),
         halfViaEncArea_(nullptr),
         via2viaMinLen_(nullptr),
         via2viaMinLenNew_(nullptr),
@@ -150,7 +150,7 @@ class FlexGridGraph
   // unsafe access
   Point& getPoint(Point& in, frMIdx x, frMIdx y) const
   {
-    in.set(xCoords_[x], yCoords_[y]);
+    in = {xCoords_[x], yCoords_[y]};
     return in;
   }
   // unsafe access
@@ -834,10 +834,6 @@ class FlexGridGraph
                          frDirEnum dir,
                          frDirEnum prevDir,
                          frLayer* layer) const;
-  frCoord getMinSpacingValue(frLayer* layer,
-                             frCoord width1,
-                             frCoord width2,
-                             frCoord prl) const;
   frCost getCosts(frMIdx gridX,
                   frMIdx gridY,
                   frMIdx gridZ,
@@ -867,10 +863,13 @@ class FlexGridGraph
               FlexMazeIdx& ccMazeIdx2,
               const Point& centerPt,
               std::map<FlexMazeIdx, frBox3D*>& mazeIdx2TaperBox);
-  void setCost(frUInt4 drcCostIn, frUInt4 markerCostIn)
+  void setCost(frUInt4 drcCostIn,
+               frUInt4 markerCostIn,
+               frUInt4 FixedShapeCostIn)
   {
     ggDRCCost_ = drcCostIn;
     ggMarkerCost_ = markerCostIn;
+    ggFixedShapeCost_ = FixedShapeCostIn;
   }
   frCoord getHalfViaEncArea(frMIdx z, bool isLayer1) const
   {
@@ -1012,6 +1011,7 @@ class FlexGridGraph
   Rect dieBox_;
   frUInt4 ggDRCCost_;
   frUInt4 ggMarkerCost_;
+  frUInt4 ggFixedShapeCost_;
   // temporary variables
   FlexWavefront wavefront_;
   const std::vector<std::pair<frCoord, frCoord>>*
@@ -1247,5 +1247,3 @@ class FlexGridGraph
   friend class FlexDRWorker;
 };
 }  // namespace fr
-
-#endif
